@@ -1,0 +1,67 @@
+<main class="shell">
+  <nav class="topbar" aria-label="Primary navigation">
+    <div class="brand">
+      <span class="brand-mark">WMS</span>
+      <span class="brand-name">Workforce Management System</span>
+    </div>
+
+    <div class="status-pill">Setup phase</div>
+  </nav>
+
+  <section class="hero" aria-labelledby="page-title">
+    <div class="hero-copy">
+      <p class="eyebrow">Enterprise workforce operations</p>
+      <h1 id="page-title">Centralized employee, attendance, leave, and project management.</h1>
+      <p class="summary">
+        The application shell is ready for Admin, Manager, and Employee workflows. Backend API,
+        Swagger, SQL Server Docker connectivity, and Angular routing foundations are being built in phases.
+      </p>
+      <div class="actions" aria-label="Setup status">
+        <span>Backend: ASP.NET Core Web API</span>
+        <span>Database: SQL Server Docker</span>
+        <span>Frontend: Angular</span>
+      </div>
+    </div>
+
+    <div class="system-panel" aria-label="Current setup checklist">
+      <h2>Current Build</h2>
+      <dl>
+        <div>
+          <dt>API base</dt>
+          <dd>/api/v1</dd>
+        </div>
+        <div>
+          <dt>Swagger</dt>
+          <dd>Development enabled</dd>
+        </div>
+        <div>
+          <dt>SQL Server</dt>
+          <dd>localhost:1433</dd>
+        </div>
+        <div>
+          <dt>Branch flow</dt>
+          <dd>main, dev, feature/*</dd>
+        </div>
+      </dl>
+    </div>
+  </section>
+
+  <section class="module-section" aria-labelledby="module-title">
+    <div class="section-heading">
+      <p class="eyebrow">Feature roadmap</p>
+      <h2 id="module-title">Modules prepared for phased implementation</h2>
+    </div>
+
+    <div class="module-grid">
+      @for (module of modules; track module.name) {
+        <article class="module-card">
+          <div>
+            <h3>{{ module.name }}</h3>
+            <p>{{ module.detail }}</p>
+          </div>
+          <span>{{ module.status }}</span>
+        </article>
+      }
+    </div>
+  </section>
+</main>
