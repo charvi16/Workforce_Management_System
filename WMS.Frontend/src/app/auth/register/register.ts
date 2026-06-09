@@ -1,6 +1,7 @@
 import { Component, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
+import { switchMap } from 'rxjs';
 import { AuthService } from '../auth.service';
 
 @Component({
@@ -41,11 +42,16 @@ export class Register {
     this.errorMessage = '';
     this.successMessage = '';
 
-    this.authService.register(username ?? '', password ?? '', Number(roleId)).subscribe({
+    const newUsername = username ?? '';
+    const newPassword = password ?? '';
+
+    this.authService.register(newUsername, newPassword, Number(roleId)).pipe(
+      switchMap(() => this.authService.login(newUsername, newPassword))
+    ).subscribe({
       next: (response) => {
         this.isSubmitting = false;
         this.successMessage = `${response.data.username} registered as ${response.data.role}.`;
-        setTimeout(() => void this.router.navigateByUrl('/login'), 600);
+        void this.router.navigateByUrl('/dashboard');
       },
       error: (error) => {
         this.isSubmitting = false;

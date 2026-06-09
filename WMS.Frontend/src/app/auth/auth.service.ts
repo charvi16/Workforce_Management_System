@@ -18,6 +18,13 @@ interface AuthResponse {
   expiresAtUtc: string;
 }
 
+export interface CurrentUser {
+  userId: number;
+  username: string;
+  role: string;
+  expiresAtUtc: string;
+}
+
 interface RegisterResponse {
   userId: number;
   username: string;
@@ -58,6 +65,20 @@ export class AuthService {
 
   getToken(): string | null {
     return localStorage.getItem(this.tokenKey);
+  }
+
+  getCurrentUser(): CurrentUser | null {
+    const userJson = localStorage.getItem(this.userKey);
+    if (!userJson) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(userJson) as CurrentUser;
+    } catch {
+      this.logout();
+      return null;
+    }
   }
 
   logout(): void {

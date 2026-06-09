@@ -1,0 +1,202 @@
+<main class="dashboard-shell">
+  <aside class="sidebar" aria-label="Dashboard navigation">
+    <a routerLink="/" class="brand">
+      <span class="brand-mark">WMS</span>
+      <span>Workforce</span>
+    </a>
+
+    <nav>
+      @for (item of navItems; track item.id) {
+        <button
+          type="button"
+          [class.active]="selectedSection === item.id"
+          (click)="selectSection(item.id)"
+        >
+          {{ item.label }}
+        </button>
+      }
+    </nav>
+  </aside>
+
+  <section class="workspace">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">{{ role }} Dashboard</p>
+        <h1>{{ activeNavLabel }}</h1>
+      </div>
+      <button type="button" (click)="logout()">Logout</button>
+    </header>
+
+    @if (selectedSection === 'dashboard') {
+      <section class="welcome-section">
+        <div>
+          <h2>Welcome, {{ user.username }}</h2>
+          <p>Track attendance, leave, projects, announcements, and recent activity from one role-based view.</p>
+        </div>
+        <div class="role-chip">{{ role }}</div>
+      </section>
+
+      <section class="summary-grid" aria-label="Summary cards">
+        @for (card of summaryCards; track card.label) {
+          <article class="summary-card">
+            <p>{{ card.label }}</p>
+            <strong>{{ card.value }}</strong>
+            <span>{{ card.detail }}</span>
+          </article>
+        }
+      </section>
+
+      <section class="content-grid">
+        <article class="panel chart-panel">
+          <div class="panel-heading">
+            <h2>Attendance Overview</h2>
+            <span>This month</span>
+          </div>
+          <div class="bar-row">
+            <span>Present</span>
+            <div><i class="present"></i></div>
+            <strong>82%</strong>
+          </div>
+          <div class="bar-row">
+            <span>Absent</span>
+            <div><i class="absent"></i></div>
+            <strong>8%</strong>
+          </div>
+          <div class="bar-row">
+            <span>Leave</span>
+            <div><i class="leave"></i></div>
+            <strong>10%</strong>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-heading">
+            <h2>Today's Attendance</h2>
+            <span>{{ role === 'Employee' ? 'My status' : 'Team status' }}</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>{{ role === 'Employee' ? 'Day' : 'Employee' }}</th>
+                <th>Check-In</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of attendanceRows; track row.name) {
+                <tr>
+                  <td>{{ row.name }}</td>
+                  <td>{{ row.checkIn }}</td>
+                  <td><span class="status">{{ row.status }}</span></td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </article>
+
+        <article class="panel">
+          <div class="panel-heading">
+            <h2>{{ role === 'Employee' ? 'My Leave Requests' : 'Pending Approvals' }}</h2>
+            <span>{{ role === 'Employee' ? 'Leave status' : 'Action queue' }}</span>
+          </div>
+          <table>
+            <tbody>
+              @for (row of approvalRows; track row.person + row.type) {
+                <tr>
+                  <td>{{ row.person }}</td>
+                  <td>{{ row.type }}</td>
+                  <td><span class="status">{{ row.status }}</span></td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </article>
+
+        <article class="panel">
+          <div class="panel-heading">
+            <h2>{{ role === 'Employee' ? 'My Projects' : 'Project Status' }}</h2>
+            <span>Current work</span>
+          </div>
+          <table>
+            <tbody>
+              @for (project of projectRows; track project.name) {
+                <tr>
+                  <td>{{ project.name }}</td>
+                  <td>{{ project.client }}</td>
+                  <td><span class="status">{{ project.status }}</span></td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </article>
+      </section>
+
+      <section class="bottom-grid">
+        <article class="panel">
+          <div class="panel-heading">
+            <h2>Quick Actions</h2>
+            <span>{{ role }}</span>
+          </div>
+          <div class="quick-actions">
+            @for (action of quickActions; track action) {
+              <button type="button">{{ action }}</button>
+            }
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-heading">
+            <h2>Announcements</h2>
+            <span>Notice board</span>
+          </div>
+          <ol class="text-list">
+            @for (announcement of announcements; track announcement) {
+              <li>{{ announcement }}</li>
+            }
+          </ol>
+        </article>
+
+        <article class="panel">
+          <div class="panel-heading">
+            <h2>{{ role === 'Employee' ? 'My Recent Activity' : 'Recent Activity' }}</h2>
+            <span>Latest updates</span>
+          </div>
+          <ul class="text-list">
+            @for (activity of recentActivity; track activity) {
+              <li>{{ activity }}</li>
+            }
+          </ul>
+        </article>
+      </section>
+    } @else {
+      <section class="welcome-section">
+        <div>
+          <h2>{{ activeNavLabel }}</h2>
+          <p>This {{ role }} view is ready for the next API-backed module. The cards below show the workflow scope for this area.</p>
+        </div>
+        <div class="role-chip">{{ role }}</div>
+      </section>
+
+      <section class="summary-grid" aria-label="Section cards">
+        @for (card of getSectionCards(selectedSection); track card.label) {
+          <article class="summary-card">
+            <p>{{ card.label }}</p>
+            <strong>{{ card.value }}</strong>
+            <span>{{ card.detail }}</span>
+          </article>
+        }
+      </section>
+
+      <article class="panel section-panel">
+        <div class="panel-heading">
+          <h2>{{ activeNavLabel }} Workspace</h2>
+          <span>{{ role }} module</span>
+        </div>
+        <p>
+          Use this section for {{ activeNavLabel.toLowerCase() }} workflows. The sidebar now switches sections without leaving the dashboard,
+          and each section can be connected to its CRUD screens and backend APIs as those modules are completed.
+        </p>
+      </article>
+    }
+  </section>
+</main>
