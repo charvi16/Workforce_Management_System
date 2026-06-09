@@ -1,6 +1,6 @@
 # WMS SQL Server Docker Setup
 
-The local database runs from the official Microsoft SQL Server 2022 Docker image.
+The local database runs from a SQL Server-compatible Docker image. On Apple Silicon, the official SQL Server 2022 AMD64 image can crash under emulation, so this project uses `mcr.microsoft.com/azure-sql-edge:latest` for local development.
 
 ```bash
 docker compose up -d sqlserver
