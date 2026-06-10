@@ -1,6 +1,7 @@
 import { Component, inject } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService, CurrentUser } from '../auth/auth.service';
+import { EmployeeManagement } from '../employees/employee-management';
 
 interface SummaryCard {
   label: string;
@@ -12,7 +13,7 @@ type DashboardSection = 'dashboard' | 'employees' | 'attendance' | 'leaves' | 'p
 
 @Component({
   selector: 'app-dashboard',
-  imports: [RouterLink],
+  imports: [RouterLink, EmployeeManagement],
   templateUrl: './dashboard.html',
   styleUrl: './dashboard.scss'
 })

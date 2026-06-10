@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using WMS.Application.Interfaces;
 using WMS.Infrastructure.Data;
+using WMS.Infrastructure.Repositories;
 using WMS.Infrastructure.Services;
 
 namespace WMS.Infrastructure.DependencyInjection;
@@ -17,6 +18,10 @@ public static class ServiceCollectionExtensions
             options.UseSqlServer(connectionString));
 
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IEmployeeRepository, EmployeeRepository>();
+        services.AddScoped<IEmployeeService, EmployeeService>();
+        services.AddScoped<IDepartmentService, DepartmentService>();
+        services.AddScoped<IRoleService, RoleService>();
 
         return services;
     }
