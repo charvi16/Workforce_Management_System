@@ -1,0 +1,256 @@
+trigger:
+  branches:
+    include:
+      - main
+      - dev
+
+pr:
+  branches:
+    include:
+      - main
+      - dev
+
+variables:
+  buildConfiguration: 'Release'
+
+  # Change these according to your project
+  solutionPath: '**/*.sln'
+  apiProjectPath: 'Backend/WMS.API/WMS.API.csproj'
+  testProjectPath: 'Backend/WMS.Tests/WMS.Tests.csproj'
+  angularProjectPath: 'WMS.Frontend'
+  angularBuildOutputPath: 'WMS.Frontend/dist/WMS.Frontend/browser'
+
+  # Azure deployment names
+  azureServiceConnection: 'WMS-Azure-Service-Connection'
+  apiAppServiceName: 'wms-api-app-service'
+  staticWebAppToken: '$(AZURE_STATIC_WEB_APPS_API_TOKEN)'
+
+stages:
+
+# =========================
+# STAGE 1: BUILD AND TEST
+# =========================
+- stage: BuildAndTest
+  displayName: 'Build and Test'
+  jobs:
+  - job: Build
+    displayName: 'Build .NET API and Angular App'
+    pool:
+      vmImage: 'ubuntu-latest'
+
+    steps:
+    - checkout: self
+
+    # -------------------------
+    # Install .NET SDK
+    # -------------------------
+    - task: UseDotNet@2
+      displayName: 'Install .NET SDK'
+      inputs:
+        packageType: 'sdk'
+        version: '8.0.x'
+
+    # -------------------------
+    # Restore .NET Solution
+    # -------------------------
+    - task: DotNetCoreCLI@2
+      displayName: 'Restore .NET Solution'
+      inputs:
+        command: 'restore'
+        projects: '$(solutionPath)'
+
+    # -------------------------
+    # Build .NET API
+    # -------------------------
+    - task: DotNetCoreCLI@2
+      displayName: 'Build .NET API'
+      inputs:
+        command: 'build'
+        projects: '$(solutionPath)'
+        arguments: '--configuration $(buildConfiguration) --no-restore'
+
+    # -------------------------
+    # Run .NET Tests
+    # -------------------------
+    - task: DotNetCoreCLI@2
+      displayName: 'Run .NET Tests'
+      inputs:
+        command: 'test'
+        projects: '$(testProjectPath)'
+        arguments: '--configuration $(buildConfiguration) --no-build --collect "XPlat Code Coverage"'
+        publishTestResults: true
+
+    # -------------------------
+    # Publish .NET API
+    # -------------------------
+    - task: DotNetCoreCLI@2
+      displayName: 'Publish .NET API'
+      inputs:
+        command: 'publish'
+        publishWebProjects: false
+        projects: '$(apiProjectPath)'
+        arguments: '--configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)/api'
+        zipAfterPublish: true
+
+    # -------------------------
+    # Install Node.js
+    # -------------------------
+    - task: NodeTool@0
+      displayName: 'Install Node.js'
+      inputs:
+        versionSpec: '24.x'
+
+    # -------------------------
+    # Install Angular Dependencies
+    # -------------------------
+    - script: |
+        npm ci
+      displayName: 'Install Angular Dependencies'
+      workingDirectory: '$(angularProjectPath)'
+
+    # -------------------------
+    # Angular Test Automation
+    # -------------------------
+    - script: |
+        npm run test -- --watch=false
+      displayName: 'Run Angular Unit Tests'
+      workingDirectory: '$(angularProjectPath)'
+
+    # -------------------------
+    # Build Angular App
+    # -------------------------
+    - script: |
+        npm run build -- --configuration production
+      displayName: 'Build Angular App'
+      workingDirectory: '$(angularProjectPath)'
+
+    # -------------------------
+    # Copy Angular Build Output
+    # IMPORTANT: change dist folder if needed
+    # -------------------------
+    - task: CopyFiles@2
+      displayName: 'Copy Angular Build Output'
+      inputs:
+        SourceFolder: '$(angularBuildOutputPath)'
+        Contents: '**'
+        TargetFolder: '$(Build.ArtifactStagingDirectory)/angular'
+
+    # -------------------------
+    # Publish API Artifact
+    # -------------------------
+    - task: PublishPipelineArtifact@1
+      displayName: 'Publish API Artifact'
+      inputs:
+        targetPath: '$(Build.ArtifactStagingDirectory)/api'
+        artifact: 'api'
+        publishLocation: 'pipeline'
+
+    # -------------------------
+    # Publish Angular Artifact
+    # -------------------------
+    - task: PublishPipelineArtifact@1
+      displayName: 'Publish Angular Artifact'
+      inputs:
+        targetPath: '$(Build.ArtifactStagingDirectory)/angular'
+        artifact: 'angular'
+        publishLocation: 'pipeline'
+
+
+# =========================
+# STAGE 2: DEPLOY TO DEV
+# =========================
+- stage: DeployDev
+  displayName: 'Deploy to Development'
+  dependsOn: BuildAndTest
+  condition: succeeded()
+  jobs:
+
+  - deployment: DeployAPIToDev
+    displayName: 'Deploy API to Azure App Service - Dev'
+    environment: 'wms-dev'
+    pool:
+      vmImage: 'ubuntu-latest'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - download: current
+            artifact: api
+
+          - task: AzureWebApp@1
+            displayName: 'Deploy API to Azure App Service'
+            inputs:
+              azureSubscription: '$(azureServiceConnection)'
+              appType: 'webApp'
+              appName: '$(apiAppServiceName)'
+              package: '$(Pipeline.Workspace)/api/**/*.zip'
+
+  - deployment: DeployAngularToDev
+    displayName: 'Deploy Angular to Azure Static Web Apps - Dev'
+    environment: 'wms-dev'
+    pool:
+      vmImage: 'ubuntu-latest'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - download: current
+            artifact: angular
+
+          - task: AzureStaticWebApp@0
+            displayName: 'Deploy Angular to Azure Static Web Apps'
+            inputs:
+              app_location: '$(Pipeline.Workspace)/angular'
+              skip_app_build: true
+              azure_static_web_apps_api_token: '$(staticWebAppToken)'
+
+
+# =========================
+# STAGE 3: DEPLOY TO PRODUCTION
+# This stage should run only from main
+# Add approval on environment wms-prod
+# =========================
+- stage: DeployProd
+  displayName: 'Deploy to Production'
+  dependsOn: DeployDev
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+  jobs:
+
+  - deployment: DeployAPIToProd
+    displayName: 'Deploy API to Azure App Service - Prod'
+    environment: 'wms-prod'
+    pool:
+      vmImage: 'ubuntu-latest'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - download: current
+            artifact: api
+
+          - task: AzureWebApp@1
+            displayName: 'Deploy API to Azure App Service Production'
+            inputs:
+              azureSubscription: '$(azureServiceConnection)'
+              appType: 'webApp'
+              appName: '$(apiAppServiceName)'
+              package: '$(Pipeline.Workspace)/api/**/*.zip'
+
+  - deployment: DeployAngularToProd
+    displayName: 'Deploy Angular to Azure Static Web Apps - Prod'
+    environment: 'wms-prod'
+    pool:
+      vmImage: 'ubuntu-latest'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - download: current
+            artifact: angular
+
+          - task: AzureStaticWebApp@0
+            displayName: 'Deploy Angular to Azure Static Web Apps Production'
+            inputs:
+              app_location: '$(Pipeline.Workspace)/angular'
+              skip_app_build: true
+              azure_static_web_apps_api_token: '$(staticWebAppToken)'
