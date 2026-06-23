@@ -248,12 +248,13 @@ export class Dashboard implements OnInit {
       )
       .subscribe({
       next: (response) => {
-        this.dashboardData = response.data ?? null;
+        const dashboard = this.normalizeDashboardResponse(response);
+        this.dashboardData = dashboard;
         this.visibleAnnouncements = [];
         this.announcementError = '';
-        this.dashboardError = response.data ? '' : (response.message || 'Dashboard data is not available.');
-        this.lastUpdatedAt = response.data ? new Date().toLocaleTimeString() : this.lastUpdatedAt;
-        if (response.data) {
+        this.dashboardError = dashboard ? '' : (response.message || 'Dashboard data is not available.');
+        this.lastUpdatedAt = dashboard ? new Date().toLocaleTimeString() : this.lastUpdatedAt;
+        if (dashboard) {
           this.loadAnnouncements();
         }
       },
@@ -267,6 +268,63 @@ export class Dashboard implements OnInit {
 
   protected refreshDashboard(): void {
     this.loadDashboard();
+  }
+
+  private normalizeDashboardResponse(response: unknown): DashboardResponse | null {
+    const source = response as { data?: unknown; Data?: unknown };
+    const payload = source.data ?? source.Data ?? response;
+    const normalized = this.toCamelCaseObject(payload) as Partial<DashboardResponse> | null;
+
+    if (!normalized?.kpis) {
+      return null;
+    }
+
+    return {
+      kpis: {
+        totalEmployees: Number(normalized.kpis.totalEmployees ?? 0),
+        totalDepartments: Number(normalized.kpis.totalDepartments ?? 0),
+        activeEmployees: Number(normalized.kpis.activeEmployees ?? 0),
+        presentToday: Number(normalized.kpis.presentToday ?? 0),
+        absentToday: Number(normalized.kpis.absentToday ?? 0),
+        onLeaveToday: Number(normalized.kpis.onLeaveToday ?? 0),
+        attendanceRate: Number(normalized.kpis.attendanceRate ?? 0),
+        pendingLeaves: Number(normalized.kpis.pendingLeaves ?? 0),
+        activeProjects: Number(normalized.kpis.activeProjects ?? 0),
+        delayedProjects: Number(normalized.kpis.delayedProjects ?? 0),
+        totalClients: Number(normalized.kpis.totalClients ?? 0),
+        unallocatedEmployees: Number(normalized.kpis.unallocatedEmployees ?? 0),
+        averageWorkingHours: Number(normalized.kpis.averageWorkingHours ?? 0),
+        lateCheckInsToday: Number(normalized.kpis.lateCheckInsToday ?? 0)
+      },
+      attendanceTrend: normalized.attendanceTrend ?? [],
+      attendanceDistribution: normalized.attendanceDistribution ?? [],
+      leaveStatistics: normalized.leaveStatistics ?? [],
+      projectStatusDistribution: normalized.projectStatusDistribution ?? [],
+      departmentEmployeeCount: normalized.departmentEmployeeCount ?? [],
+      workModeDistribution: normalized.workModeDistribution ?? [],
+      alerts: normalized.alerts ?? [],
+      todayAttendance: normalized.todayAttendance ?? [],
+      projectRows: normalized.projectRows ?? [],
+      pendingApprovals: normalized.pendingApprovals ?? [],
+      announcements: normalized.announcements ?? [],
+      recentActivities: normalized.recentActivities ?? []
+    };
+  }
+
+  private toCamelCaseObject(value: unknown): unknown {
+    if (Array.isArray(value)) {
+      return value.map((item) => this.toCamelCaseObject(item));
+    }
+
+    if (!value || typeof value !== 'object') {
+      return value;
+    }
+
+    return Object.entries(value as Record<string, unknown>).reduce<Record<string, unknown>>((result, [key, item]) => {
+      const normalizedKey = key.length ? `${key[0].toLowerCase()}${key.slice(1)}` : key;
+      result[normalizedKey] = this.toCamelCaseObject(item);
+      return result;
+    }, {});
   }
 
   private loadAnnouncements(): void {

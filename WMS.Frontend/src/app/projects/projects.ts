@@ -2,7 +2,8 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, NavigationEnd, Router, RouterLink } from '@angular/router';
+import { filter } from 'rxjs';
 import { ClientsService, Client } from '../clients/clients.service';
 import { EmployeeManagementService, Employee } from '../employees/employee-management.service';
 import { AuthService } from '../auth/auth.service';
@@ -30,6 +31,7 @@ export class Projects implements OnInit {
   private readonly authService = inject(AuthService);
   private readonly formBuilder = inject(FormBuilder);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
 
   protected mode: ProjectViewMode = 'list';
   protected projects: Project[] = [];
@@ -52,8 +54,8 @@ export class Projects implements OnInit {
   protected statusFilter = '';
   protected clientFilter = 0;
   protected readonly currentUser = this.authService.getCurrentUser();
-  protected readonly canManage = this.currentUser?.role === 'Admin';
-  protected readonly canAssign = this.currentUser?.role === 'Admin' || this.currentUser?.role === 'Manager';
+  protected readonly canManage = this.isRole('Admin');
+  protected readonly canAssign = this.isRole('Admin') || this.isRole('Manager');
 
   protected readonly statuses = ['Planned', 'Active', 'OnHold', 'Completed', 'Cancelled', 'Delayed'];
 
@@ -74,10 +76,22 @@ export class Projects implements OnInit {
   });
 
   ngOnInit(): void {
+    this.syncModeFromRoute();
+    this.router.events
+      .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))
+      .subscribe(() => this.syncModeFromRoute());
+  }
+
+  private syncModeFromRoute(): void {
     this.mode = this.resolveMode();
+    this.message = '';
+    this.errorMessage = '';
+    this.currentProject = null;
+    this.allocations = [];
     this.loadLookups();
 
     if (this.mode === 'list') {
+      this.projectPageNumber = 1;
       this.loadProjects();
     } else {
       const projectId = Number(this.route.snapshot.paramMap.get('id'));
@@ -94,7 +108,7 @@ export class Projects implements OnInit {
     this.isLoading = true;
     this.projectsService.getProjects(this.search, this.clientFilter || undefined, this.statusFilter, this.projectPageNumber, this.projectPageSize).subscribe({
       next: (response) => {
-        const page = response.data;
+        const page = this.normalizeProjectPage(response);
         this.projects = page?.items ?? [];
         this.projectTotalCount = page?.totalCount ?? 0;
         this.projectTotalPages = page?.totalPages ?? 0;
@@ -255,7 +269,7 @@ export class Projects implements OnInit {
   private loadAllocations(projectId: number): void {
     this.projectsService.getAllocationsByProject(projectId, this.allocationPageNumber, this.allocationPageSize).subscribe({
       next: (response) => {
-        const page = response.data;
+        const page = this.normalizeAllocationPage(response);
         this.allocations = page?.items ?? [];
         this.allocationTotalCount = page?.totalCount ?? 0;
         this.allocationTotalPages = page?.totalPages ?? 0;
@@ -292,6 +306,51 @@ export class Projects implements OnInit {
       return 'detail';
     }
     return 'list';
+  }
+
+  private normalizeProjectPage(response: unknown): PagedResult<Project> | null {
+    return this.normalizePage<Project>(response, this.projectPageNumber, this.projectPageSize);
+  }
+
+  private normalizeAllocationPage(response: unknown): PagedResult<ProjectAllocation> | null {
+    return this.normalizePage<ProjectAllocation>(response, this.allocationPageNumber, this.allocationPageSize);
+  }
+
+  private normalizePage<T>(response: unknown, fallbackPageNumber: number, fallbackPageSize: number): PagedResult<T> | null {
+    const source = response as { data?: unknown; Data?: unknown };
+    const rawPage = this.toCamelCaseObject(source.data ?? source.Data) as Partial<PagedResult<T>> | null;
+
+    if (!rawPage) {
+      return null;
+    }
+
+    return {
+      items: rawPage.items ?? [],
+      totalCount: Number(rawPage.totalCount ?? 0),
+      pageNumber: Number(rawPage.pageNumber ?? fallbackPageNumber),
+      pageSize: Number(rawPage.pageSize ?? fallbackPageSize),
+      totalPages: Number(rawPage.totalPages ?? 0)
+    };
+  }
+
+  private toCamelCaseObject(value: unknown): unknown {
+    if (Array.isArray(value)) {
+      return value.map((item) => this.toCamelCaseObject(item));
+    }
+
+    if (!value || typeof value !== 'object') {
+      return value;
+    }
+
+    return Object.entries(value as Record<string, unknown>).reduce<Record<string, unknown>>((result, [key, item]) => {
+      const normalizedKey = key.length ? `${key[0].toLowerCase()}${key.slice(1)}` : key;
+      result[normalizedKey] = this.toCamelCaseObject(item);
+      return result;
+    }, {});
+  }
+
+  private isRole(role: string): boolean {
+    return this.currentUser?.role?.trim().toLowerCase() === role.toLowerCase();
   }
 
   private resetForms(): void {

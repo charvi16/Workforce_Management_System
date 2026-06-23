@@ -4,7 +4,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, NavigationEnd, Router, RouterLink } from '@angular/router';
 import { filter } from 'rxjs';
 import { AuthService } from '../auth/auth.service';
-import { Announcement, AnnouncementRequest, AnnouncementsService } from './announcements.service';
+import { Announcement, AnnouncementRequest, AnnouncementsService, PagedResult } from './announcements.service';
 
 type AnnouncementMode = 'list' | 'add' | 'edit' | 'detail';
 
@@ -78,7 +78,7 @@ export class Announcements implements OnInit {
     this.isLoading = true;
     this.announcementsService.getAnnouncements(this.pageNumber, this.pageSize).subscribe({
       next: (response) => {
-        const page = response.data;
+        const page = this.normalizePage(response);
         this.announcements = page?.items ?? [];
         this.pageNumber = page?.pageNumber ?? this.pageNumber;
         this.pageSize = page?.pageSize ?? this.pageSize;
@@ -191,6 +191,39 @@ export class Announcements implements OnInit {
         this.errorMessage = this.getApiError(error, 'Unable to load announcement.');
       }
     });
+  }
+
+  private normalizePage(response: unknown): PagedResult<Announcement> | null {
+    const source = response as { data?: unknown; Data?: unknown };
+    const rawPage = this.toCamelCaseObject(source.data ?? source.Data) as Partial<PagedResult<Announcement>> | null;
+
+    if (!rawPage) {
+      return null;
+    }
+
+    return {
+      items: rawPage.items ?? [],
+      totalCount: Number(rawPage.totalCount ?? 0),
+      pageNumber: Number(rawPage.pageNumber ?? this.pageNumber),
+      pageSize: Number(rawPage.pageSize ?? this.pageSize),
+      totalPages: Number(rawPage.totalPages ?? 0)
+    };
+  }
+
+  private toCamelCaseObject(value: unknown): unknown {
+    if (Array.isArray(value)) {
+      return value.map((item) => this.toCamelCaseObject(item));
+    }
+
+    if (!value || typeof value !== 'object') {
+      return value;
+    }
+
+    return Object.entries(value as Record<string, unknown>).reduce<Record<string, unknown>>((result, [key, item]) => {
+      const normalizedKey = key.length ? `${key[0].toLowerCase()}${key.slice(1)}` : key;
+      result[normalizedKey] = this.toCamelCaseObject(item);
+      return result;
+    }, {});
   }
 
   private resolveMode(): AnnouncementMode {

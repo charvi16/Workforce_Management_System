@@ -2,7 +2,8 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, NavigationEnd, Router, RouterLink } from '@angular/router';
+import { filter } from 'rxjs';
 import { ClientsService, Client, ClientRequest, PagedResult } from './clients.service';
 import { AuthService } from '../auth/auth.service';
 
@@ -55,8 +56,20 @@ export class Clients implements OnInit {
   });
 
   ngOnInit(): void {
+    this.syncModeFromRoute();
+    this.router.events
+      .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))
+      .subscribe(() => this.syncModeFromRoute());
+  }
+
+  private syncModeFromRoute(): void {
     this.mode = this.resolveMode();
+    this.message = '';
+    this.errorMessage = '';
+    this.currentClient = null;
+
     if (this.mode === 'list') {
+      this.pageNumber = 1;
       this.loadClients();
     } else {
       const clientId = Number(this.route.snapshot.paramMap.get('id'));
@@ -73,7 +86,7 @@ export class Clients implements OnInit {
     const status = this.statusFilter === 'all' ? undefined : this.statusFilter === 'active';
     this.clientsService.getClients(this.search, status, this.pageNumber, this.pageSize).subscribe({
       next: (response) => {
-        const page = response.data;
+        const page = this.normalizePage(response);
         this.clients = page?.items ?? [];
         this.totalCount = page?.totalCount ?? 0;
         this.totalPages = page?.totalPages ?? 0;
@@ -197,6 +210,39 @@ export class Clients implements OnInit {
       return 'detail';
     }
     return 'list';
+  }
+
+  private normalizePage(response: unknown): PagedResult<Client> | null {
+    const source = response as { data?: unknown; Data?: unknown };
+    const rawPage = this.toCamelCaseObject(source.data ?? source.Data) as Partial<PagedResult<Client>> | null;
+
+    if (!rawPage) {
+      return null;
+    }
+
+    return {
+      items: rawPage.items ?? [],
+      totalCount: Number(rawPage.totalCount ?? 0),
+      pageNumber: Number(rawPage.pageNumber ?? this.pageNumber),
+      pageSize: Number(rawPage.pageSize ?? this.pageSize),
+      totalPages: Number(rawPage.totalPages ?? 0)
+    };
+  }
+
+  private toCamelCaseObject(value: unknown): unknown {
+    if (Array.isArray(value)) {
+      return value.map((item) => this.toCamelCaseObject(item));
+    }
+
+    if (!value || typeof value !== 'object') {
+      return value;
+    }
+
+    return Object.entries(value as Record<string, unknown>).reduce<Record<string, unknown>>((result, [key, item]) => {
+      const normalizedKey = key.length ? `${key[0].toLowerCase()}${key.slice(1)}` : key;
+      result[normalizedKey] = this.toCamelCaseObject(item);
+      return result;
+    }, {});
   }
 
   private resetForm(): void {

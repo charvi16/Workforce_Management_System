@@ -66,7 +66,7 @@ export class DashboardService {
   private readonly authService = inject(AuthService);
 
   getDashboard(role: 'Admin' | 'Manager' | 'Employee'): Observable<ApiResponse<DashboardResponse>> {
-    return this.http.get<ApiResponse<DashboardResponse>>(`${environment.apiBaseUrl}/Dashboard/${role.toLowerCase()}`, {
+    return this.http.get<ApiResponse<DashboardResponse>>(`${environment.apiBaseUrl}/dashboard/${role.toLowerCase()}`, {
       headers: this.getAuthHeaders()
     });
   }
