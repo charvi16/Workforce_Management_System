@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using WMS.Application.Common;
 using WMS.Application.DTOs.Employees;
@@ -17,10 +18,18 @@ public class EmployeesController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> Search([FromQuery] string? search, [FromQuery] int? departmentId, [FromQuery] int? roleId, CancellationToken cancellationToken)
+    public async Task<IActionResult> Search(
+        [FromQuery] string? search,
+        [FromQuery] int? departmentId,
+        [FromQuery] int? roleId,
+        [FromQuery] string? role,
+        [FromQuery] string? status,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 10,
+        CancellationToken cancellationToken = default)
     {
-        var employees = await _employeeService.SearchAsync(search, departmentId, roleId, cancellationToken);
-        return Ok(ApiResponse<IReadOnlyList<EmployeeDto>>.Ok(employees, "Employees retrieved successfully."));
+        var employees = await _employeeService.SearchAsync(search, departmentId, roleId, role, status, pageNumber, pageSize, cancellationToken);
+        return Ok(ApiResponse<WMS.Application.Common.PagedResult<EmployeeDto>>.Ok(employees, "Employees retrieved successfully."));
     }
 
     [HttpGet("{employeeId:int}")]
@@ -38,6 +47,7 @@ public class EmployeesController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Create(CreateEmployeeRequestDto request, CancellationToken cancellationToken)
     {
         try
@@ -52,6 +62,7 @@ public class EmployeesController : ControllerBase
     }
 
     [HttpPut("{employeeId:int}")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Update(int employeeId, UpdateEmployeeRequestDto request, CancellationToken cancellationToken)
     {
         try
@@ -66,6 +77,7 @@ public class EmployeesController : ControllerBase
     }
 
     [HttpDelete("{employeeId:int}")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Delete(int employeeId, CancellationToken cancellationToken)
     {
         try
@@ -80,6 +92,7 @@ public class EmployeesController : ControllerBase
     }
 
     [HttpPut("{employeeId:int}/department")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> AssignDepartment(int employeeId, AssignDepartmentRequestDto request, CancellationToken cancellationToken)
     {
         try
@@ -94,6 +107,7 @@ public class EmployeesController : ControllerBase
     }
 
     [HttpPut("{employeeId:int}/role")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> AssignRole(int employeeId, AssignRoleRequestDto request, CancellationToken cancellationToken)
     {
         try

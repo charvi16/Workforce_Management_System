@@ -1,0 +1,184 @@
+.attendance-shell {
+  display: grid;
+  gap: 16px;
+}
+
+.attendance-panel {
+  border: 1px solid #d8e0ed;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 18px;
+}
+
+.panel-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.panel-heading h2,
+.panel-heading p {
+  margin: 0;
+}
+
+.panel-heading p {
+  margin-top: 6px;
+  color: #53637a;
+}
+
+.hours-total {
+  border-radius: 8px;
+  background: #edf7f0;
+  color: #14532d;
+  font-size: 14px;
+  padding: 9px 11px;
+  white-space: nowrap;
+}
+
+.attendance-form,
+.month-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  align-items: end;
+}
+
+.context-card {
+  display: grid;
+  gap: 6px;
+  border: 1px solid #d8e0ed;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 10px 11px;
+}
+
+.context-card span {
+  color: #62728a;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.context-card strong {
+  color: #172033;
+  font-size: 14px;
+}
+
+label {
+  display: grid;
+  gap: 7px;
+  color: #40516a;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+input,
+select {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #172033;
+  font: inherit;
+  padding: 10px 11px;
+}
+
+.button-row {
+  display: flex;
+  gap: 10px;
+}
+
+button {
+  border: 0;
+  border-radius: 8px;
+  background: #14532d;
+  color: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+  padding: 10px 13px;
+}
+
+button.secondary {
+  background: #172033;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.pagination-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.pagination-row span {
+  color: #53637a;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.notice {
+  border-radius: 8px;
+  font-weight: 800;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+}
+
+.notice.success {
+  background: #edf7f0;
+  color: #14532d;
+}
+
+.notice.error {
+  background: #fff1f2;
+  color: #be123c;
+}
+
+.table-wrap {
+  margin-top: 18px;
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+th,
+td {
+  border-top: 1px solid #edf1f6;
+  padding: 12px 8px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+th {
+  color: #62728a;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.status {
+  border-radius: 999px;
+  background: #edf7f0;
+  color: #14532d;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 8px 11px;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .attendance-form,
+  .month-form {
+    grid-template-columns: 1fr;
+  }
+}

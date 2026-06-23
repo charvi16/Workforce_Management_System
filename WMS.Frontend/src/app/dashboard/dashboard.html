@@ -1,30 +1,17 @@
-<main class="dashboard-shell">
-  <aside class="sidebar" aria-label="Dashboard navigation">
-    <a routerLink="/" class="brand">
-      <span class="brand-mark">WMS</span>
-      <span>Workforce</span>
-    </a>
-
-    <nav>
-      @for (item of navItems; track item.id) {
-        <button
-          type="button"
-          [class.active]="selectedSection === item.id"
-          (click)="selectSection(item.id)"
-        >
-          {{ item.label }}
-        </button>
-      }
-    </nav>
-  </aside>
-
-  <section class="workspace">
+<section class="workspace">
     <header class="topbar">
       <div>
         <p class="eyebrow">{{ role }} Dashboard</p>
         <h1>{{ activeNavLabel }}</h1>
       </div>
-      <button type="button" (click)="logout()">Logout</button>
+      <div class="dashboard-actions">
+        @if (lastUpdatedAt) {
+          <span>Updated {{ lastUpdatedAt }}</span>
+        }
+        <button type="button" (click)="refreshDashboard()" [disabled]="isDashboardLoading">
+          {{ isDashboardLoading ? 'Refreshing...' : 'Refresh' }}
+        </button>
+      </div>
     </header>
 
     @if (selectedSection === 'dashboard') {
@@ -36,6 +23,13 @@
         <div class="role-chip">{{ role }}</div>
       </section>
 
+      @if (dashboardError) {
+        <section class="dashboard-message error">
+          <span>{{ dashboardError }}</span>
+          <button type="button" (click)="refreshDashboard()">Retry</button>
+        </section>
+      }
+
       <section class="summary-grid" aria-label="Summary cards">
         @for (card of summaryCards; track card.label) {
           <article class="summary-card">
@@ -46,27 +40,30 @@
         }
       </section>
 
+      @if (kpiRows.length) {
+        <section class="metrics-panel" aria-label="All dashboard metrics">
+          @for (metric of kpiRows; track metric.label) {
+            <div class="metric-item">
+              <span>{{ metric.label }}</span>
+              <strong>{{ metric.value }}</strong>
+            </div>
+          }
+        </section>
+      }
+
       <section class="content-grid">
         <article class="panel chart-panel">
           <div class="panel-heading">
             <h2>Attendance Overview</h2>
             <span>This month</span>
           </div>
-          <div class="bar-row">
-            <span>Present</span>
-            <div><i class="present"></i></div>
-            <strong>82%</strong>
-          </div>
-          <div class="bar-row">
-            <span>Absent</span>
-            <div><i class="absent"></i></div>
-            <strong>8%</strong>
-          </div>
-          <div class="bar-row">
-            <span>Leave</span>
-            <div><i class="leave"></i></div>
-            <strong>10%</strong>
-          </div>
+          @for (row of attendanceOverviewRows; track row.label) {
+            <div class="bar-row">
+              <span>{{ row.label }}</span>
+              <div><i [class]="row.className" [style.width.%]="row.percent"></i></div>
+              <strong>{{ row.percent }}%</strong>
+            </div>
+          }
         </article>
 
         <article class="panel">
@@ -86,8 +83,12 @@
               @for (row of attendanceRows; track row.name) {
                 <tr>
                   <td>{{ row.name }}</td>
-                  <td>{{ row.checkIn }}</td>
+                  <td>{{ row.detail }}</td>
                   <td><span class="status">{{ row.status }}</span></td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="3">No check-ins recorded today.</td>
                 </tr>
               }
             </tbody>
@@ -107,6 +108,10 @@
                   <td>{{ row.type }}</td>
                   <td><span class="status">{{ row.status }}</span></td>
                 </tr>
+              } @empty {
+                <tr>
+                  <td colspan="3">No pending approvals.</td>
+                </tr>
               }
             </tbody>
           </table>
@@ -122,12 +127,28 @@
               @for (project of projectRows; track project.name) {
                 <tr>
                   <td>{{ project.name }}</td>
-                  <td>{{ project.client }}</td>
+                  <td>{{ project.detail }}</td>
                   <td><span class="status">{{ project.status }}</span></td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="3">No active projects found.</td>
                 </tr>
               }
             </tbody>
           </table>
+        </article>
+
+        <article class="panel">
+          <div class="panel-heading">
+            <h2>Alerts</h2>
+            <span>Live signals</span>
+          </div>
+          <ul class="text-list">
+            @for (alert of alerts; track alert.message) {
+              <li><strong>{{ alert.type }}:</strong> {{ alert.message }}</li>
+            }
+          </ul>
         </article>
       </section>
 
@@ -138,8 +159,8 @@
             <span>{{ role }}</span>
           </div>
           <div class="quick-actions">
-            @for (action of quickActions; track action) {
-              <button type="button">{{ action }}</button>
+            @for (action of quickActions; track action.label) {
+              <button type="button" (click)="openQuickAction(action)">{{ action.label }}</button>
             }
           </div>
         </article>
@@ -152,6 +173,8 @@
           <ol class="text-list">
             @for (announcement of announcements; track announcement) {
               <li>{{ announcement }}</li>
+            } @empty {
+              <li>{{ announcementError || 'No announcements available.' }}</li>
             }
           </ol>
         </article>
@@ -170,6 +193,12 @@
       </section>
     } @else if (selectedSection === 'employees') {
       <app-employee-management />
+    } @else if (selectedSection === 'departments') {
+      <app-departments />
+    } @else if (selectedSection === 'attendance') {
+      <app-attendance />
+    } @else if (selectedSection === 'leaves') {
+      <app-leave />
     } @else {
       <section class="welcome-section">
         <div>
@@ -200,5 +229,4 @@
         </p>
       </article>
     }
-  </section>
-</main>
+</section>

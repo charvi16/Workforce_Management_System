@@ -1,5 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
 
 namespace WMS.Domain.Entities;
 
@@ -13,13 +12,17 @@ public class Client
 
     public string? ClientAddress { get; set; }
 
-    [Column(TypeName = "numeric(10,0)")]
-    public decimal? ClientPhoneNumber { get; set; }
+    [MaxLength(15)]
+    public string? ClientPhoneNumber { get; set; }
 
-    [MaxLength(20)]
+    [MaxLength(100)]
     public string? ClientLocation { get; set; }
 
     public bool Status { get; set; } = true;
+
+    public DateTime CreatedOn { get; set; } = DateTime.UtcNow;
+
+    public DateTime? UpdatedOn { get; set; }
 
     public ICollection<Project> Projects { get; set; } = new List<Project>();
 }

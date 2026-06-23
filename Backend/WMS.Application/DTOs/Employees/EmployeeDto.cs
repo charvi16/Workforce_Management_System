@@ -3,6 +3,7 @@ namespace WMS.Application.DTOs.Employees;
 public class EmployeeDto
 {
     public int EmployeeId { get; set; }
+    public string Username { get; set; } = string.Empty;
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;
     public string FullName => $"{FirstName} {LastName}".Trim();

@@ -1,0 +1,56 @@
+<section class="page-shell">
+  <header class="page-header">
+    <div>
+      <p class="eyebrow">Reports</p>
+      <h1>Report Center</h1>
+    </div>
+    <a routerLink="/reports" class="link-button">Back to Reports</a>
+  </header>
+
+  <form class="form-grid" [formGroup]="form" (ngSubmit)="generateReport()">
+    <label>
+      <span>Report Type</span>
+      <select formControlName="reportType">
+        @for (report of reportTypes; track report.id) {
+          <option [value]="report.id">{{ report.name }}</option>
+        }
+      </select>
+    </label>
+    <label>
+      <span>Employee</span>
+      <select formControlName="employeeId">
+        <option [ngValue]="0">All Employees</option>
+        @for (employee of employees; track employee.employeeId) {
+          <option [ngValue]="employee.employeeId">{{ employee.fullName }}</option>
+        }
+      </select>
+    </label>
+    <label>
+      <span>Department</span>
+      <select formControlName="departmentId">
+        <option [ngValue]="0">All Departments</option>
+        @for (department of departments; track department.departmentId) {
+          <option [ngValue]="department.departmentId">{{ department.departmentName }}</option>
+        }
+      </select>
+    </label>
+    <label>
+      <span>From Date</span>
+      <input type="date" formControlName="fromDate" />
+    </label>
+    <label>
+      <span>To Date</span>
+      <input type="date" formControlName="toDate" />
+    </label>
+    <div class="form-actions">
+      <button type="submit" [disabled]="isGenerating">Generate Report</button>
+    </div>
+  </form>
+
+  @if (message) {
+    <p class="success">{{ message }}</p>
+  }
+  @if (errorMessage) {
+    <p class="error">{{ errorMessage }}</p>
+  }
+</section>

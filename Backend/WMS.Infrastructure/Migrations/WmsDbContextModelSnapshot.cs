@@ -83,8 +83,14 @@ namespace WMS.Infrastructure.Migrations
 
                     b.HasKey("AttendanceId");
 
+                    b.HasIndex("AttendanceDate");
+
+                    b.HasIndex("EmpId");
+
                     b.HasIndex("EmpId", "AttendanceDate")
                         .IsUnique();
+
+                    b.HasIndex("EmpId", "AttendanceDate", "CheckIn", "CheckOut");
 
                     b.ToTable("Attendances");
                 });
@@ -130,24 +136,36 @@ namespace WMS.Infrastructure.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ClientId"));
 
                     b.Property<string>("ClientAddress")
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("varchar(max)");
 
                     b.Property<string>("ClientLocation")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
+                        .HasColumnType("varchar(100)");
 
                     b.Property<string>("ClientName")
                         .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("varchar(100)");
 
-                    b.Property<decimal?>("ClientPhoneNumber")
-                        .HasColumnType("numeric(10,0)");
+                    b.Property<string>("ClientPhoneNumber")
+                        .HasColumnType("varchar(15)");
+
+                    b.Property<DateTime>("CreatedOn")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("GETDATE()");
 
                     b.Property<bool>("Status")
-                        .HasColumnType("bit");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<DateTime?>("UpdatedOn")
+                        .HasColumnType("datetime2");
 
                     b.HasKey("ClientId");
+
+                    b.HasIndex("ClientName");
+
+                    b.HasIndex("Status");
 
                     b.ToTable("Clients");
                 });
@@ -252,6 +270,11 @@ namespace WMS.Infrastructure.Migrations
                     b.Property<DateTime?>("UpdatedOn")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("Username")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
                     b.HasKey("EmployeeId");
 
                     b.HasIndex("DepartmentId");
@@ -260,6 +283,9 @@ namespace WMS.Infrastructure.Migrations
                         .IsUnique();
 
                     b.HasIndex("RoleId");
+
+                    b.HasIndex("Username")
+                        .IsUnique();
 
                     b.ToTable("Employees");
                 });
@@ -348,7 +374,17 @@ namespace WMS.Infrastructure.Migrations
 
                     b.HasIndex("ApprovedBy");
 
+                    b.HasIndex("AppliedOn");
+
                     b.HasIndex("EmpId");
+
+                    b.HasIndex("EmpId", "Status", "FromDate");
+
+                    b.HasIndex("FromDate");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("ToDate");
 
                     b.ToTable("Leaves");
                 });
@@ -435,6 +471,9 @@ namespace WMS.Infrastructure.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("UserId"));
 
+                    b.Property<int>("EmployeeId")
+                        .HasColumnType("int");
+
                     b.Property<DateTime?>("LastLogin")
                         .HasColumnType("datetime2");
 
@@ -451,6 +490,9 @@ namespace WMS.Infrastructure.Migrations
                         .HasColumnType("nvarchar(50)");
 
                     b.HasKey("UserId");
+
+                    b.HasIndex("EmployeeId")
+                        .IsUnique();
 
                     b.HasIndex("RoleId");
 
@@ -550,11 +592,19 @@ namespace WMS.Infrastructure.Migrations
 
             modelBuilder.Entity("WMS.Domain.Entities.UserLogin", b =>
                 {
+                    b.HasOne("WMS.Domain.Entities.Employee", "Employee")
+                        .WithOne("UserLogin")
+                        .HasForeignKey("WMS.Domain.Entities.UserLogin", "EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("WMS.Domain.Entities.Role", "Role")
                         .WithMany("UserLogins")
                         .HasForeignKey("RoleId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Employee");
 
                     b.Navigation("Role");
                 });
@@ -576,6 +626,8 @@ namespace WMS.Infrastructure.Migrations
                     b.Navigation("Leaves");
 
                     b.Navigation("ProjectAllocations");
+
+                    b.Navigation("UserLogin");
                 });
 
             modelBuilder.Entity("WMS.Domain.Entities.Project", b =>

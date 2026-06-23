@@ -1,0 +1,217 @@
+<section class="page-shell">
+  <header class="page-header">
+    <div>
+      <p class="eyebrow">Projects</p>
+      <h1>{{ mode === 'list' ? 'Project Directory' : mode === 'detail' ? 'Project Details' : 'Project Form' }}</h1>
+    </div>
+    <div class="header-actions">
+      <a routerLink="/projects" class="link-button">Back to Projects</a>
+      <a routerLink="/projects" class="link-button">List</a>
+      @if (canManage) {
+        <a routerLink="/projects/add" class="link-button">Add</a>
+      }
+    </div>
+  </header>
+
+  @if (mode === 'list') {
+    <section class="toolbar">
+      <input type="search" [(ngModel)]="search" placeholder="Search projects" />
+      <input type="number" [(ngModel)]="clientFilter" min="0" placeholder="Client Id" />
+      <select [(ngModel)]="statusFilter">
+        <option value="">All Status</option>
+        @for (status of statuses; track status) {
+          <option [value]="status">{{ status }}</option>
+        }
+      </select>
+      <button type="button" (click)="searchProjects()">Search</button>
+    </section>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Project Name</th>
+            <th>Client Name</th>
+            <th>Start Date</th>
+            <th>End Date</th>
+            <th>Members</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (project of projects; track project.projectId) {
+            <tr>
+              <td>{{ project.projectName }}</td>
+              <td>{{ project.clientName || '--' }}</td>
+              <td>{{ project.startDate ? project.startDate.slice(0, 10) : '--' }}</td>
+              <td>{{ project.endDate ? project.endDate.slice(0, 10) : '--' }}</td>
+              <td>{{ project.membersCount }}</td>
+              <td><span class="status-chip">{{ project.status }}</span></td>
+              <td class="actions">
+                <a [routerLink]="['/projects', project.projectId]">View</a>
+                @if (canManage) {
+                  <a [routerLink]="['/projects/edit', project.projectId]">Edit</a>
+                  <button type="button" (click)="cancelProject(project.projectId)">Cancel</button>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <div class="pagination">
+      <button type="button" (click)="changeProjectPage(-1)" [disabled]="projectPageNumber <= 1">Previous</button>
+      <span>Page {{ projectPageNumber }} of {{ projectTotalPages || 1 }} | {{ projectTotalCount }} records</span>
+      <button type="button" (click)="changeProjectPage(1)" [disabled]="projectTotalPages > 0 && projectPageNumber >= projectTotalPages">Next</button>
+    </div>
+  } @else if (mode === 'detail') {
+    @if (currentProject) {
+      <article class="detail-card">
+        <div class="detail-header">
+          <div>
+            <h2>{{ currentProject.projectName }}</h2>
+            <p>{{ currentProject.clientName || '--' }}</p>
+          </div>
+          <div class="status-chip">{{ currentProject.status }}</div>
+        </div>
+
+        <dl>
+          <div><dt>Start</dt><dd>{{ currentProject.startDate ? currentProject.startDate.slice(0, 10) : '--' }}</dd></div>
+          <div><dt>End</dt><dd>{{ currentProject.endDate ? currentProject.endDate.slice(0, 10) : '--' }}</dd></div>
+          <div><dt>Members</dt><dd>{{ currentProject.membersCount }}</dd></div>
+        </dl>
+
+        <section class="subsection">
+          <div class="section-heading">
+            <h3>Assigned Employees</h3>
+            <span>{{ allocationTotalCount }} records</span>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Employee</th>
+                  <th>Role</th>
+                  <th>Allocation %</th>
+                  <th>Assigned On</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (allocation of allocations; track allocation.allocationId) {
+                  <tr>
+                    <td>{{ allocation.employeeName }}</td>
+                    <td>{{ allocation.roleInProject || '--' }}</td>
+                    <td>{{ allocation.allocationPercentage ?? '--' }}</td>
+                    <td>{{ allocation.assignedOn.slice(0, 10) }}</td>
+                    <td><span class="status-chip" [class.status-inactive]="!allocation.status">{{ allocation.status ? 'Active' : 'Inactive' }}</span></td>
+                    <td class="actions">
+                      @if (canAssign) {
+                        <button type="button" (click)="deactivateAllocation(allocation.allocationId)">Deactivate</button>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+
+          <div class="pagination">
+            <button type="button" (click)="changeAllocationPage(-1)" [disabled]="allocationPageNumber <= 1">Previous</button>
+            <span>Page {{ allocationPageNumber }} of {{ allocationTotalPages || 1 }}</span>
+            <button type="button" (click)="changeAllocationPage(1)" [disabled]="allocationTotalPages > 0 && allocationPageNumber >= allocationTotalPages">Next</button>
+          </div>
+        </section>
+
+        @if (canAssign) {
+          <section class="subsection">
+            <div class="section-heading">
+              <h3>Assign Employee</h3>
+              <span>Add to this project</span>
+            </div>
+
+            <form class="form-grid" [formGroup]="allocationForm" (ngSubmit)="assignEmployee()">
+              <label>
+                <span>Employee</span>
+                <select formControlName="empId">
+                  <option [ngValue]="0">Select Employee</option>
+                  @for (employee of employees; track employee.employeeId) {
+                    <option [ngValue]="employee.employeeId">{{ employee.fullName }}</option>
+                  }
+                </select>
+              </label>
+              <label>
+                <span>Assigned On</span>
+                <input type="date" formControlName="assignedOn" />
+              </label>
+              <label>
+                <span>Role In Project</span>
+                <input type="text" formControlName="roleInProject" />
+              </label>
+              <label>
+                <span>Allocation %</span>
+                <input type="number" formControlName="allocationPercentage" min="1" max="100" />
+              </label>
+              <label>
+                <span>Status</span>
+                <select formControlName="status">
+                  <option [ngValue]="true">Active</option>
+                  <option [ngValue]="false">Inactive</option>
+                </select>
+              </label>
+              <div class="form-actions">
+                <button type="submit">Assign Employee</button>
+              </div>
+            </form>
+          </section>
+        }
+      </article>
+    }
+  } @else {
+    <form class="form-grid" [formGroup]="projectForm" (ngSubmit)="saveProject()">
+      <label>
+        <span>Project Name</span>
+        <input type="text" formControlName="projectName" />
+      </label>
+      <label>
+        <span>Client</span>
+        <select formControlName="clientId">
+          <option [ngValue]="null">Select Client</option>
+          @for (client of clients; track client.clientId) {
+            <option [ngValue]="client.clientId">{{ client.clientName }}</option>
+          }
+        </select>
+      </label>
+      <label>
+        <span>Start Date</span>
+        <input type="date" formControlName="startDate" />
+      </label>
+      <label>
+        <span>End Date</span>
+        <input type="date" formControlName="endDate" />
+      </label>
+      <label>
+        <span>Status</span>
+        <select formControlName="status">
+          @for (status of statuses; track status) {
+            <option [value]="status">{{ status }}</option>
+          }
+        </select>
+      </label>
+      <div class="form-actions">
+        <button type="submit" [disabled]="!canManage">{{ mode === 'edit' ? 'Update' : 'Create' }}</button>
+      </div>
+    </form>
+  }
+
+  @if (message) {
+    <p class="success">{{ message }}</p>
+  }
+  @if (errorMessage) {
+    <p class="error">{{ errorMessage }}</p>
+  }
+</section>

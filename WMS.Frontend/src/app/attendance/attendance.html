@@ -1,0 +1,123 @@
+<section class="attendance-shell">
+  <article class="attendance-panel">
+    <div class="panel-heading">
+      <div>
+        <h2>Daily Attendance</h2>
+        <p>Record your check-in and check-out.</p>
+      </div>
+    </div>
+
+    @if (message) {
+      <p class="notice success">{{ message }}</p>
+    }
+    @if (errorMessage) {
+      <p class="notice error">{{ errorMessage }}</p>
+    }
+
+    <form [formGroup]="attendanceForm" class="attendance-form">
+      <div class="context-card">
+        <span>Employee</span>
+        <strong>{{ currentEmployee?.fullName ?? currentUser?.username ?? 'Current user' }}</strong>
+      </div>
+
+      <label>
+        Work Mode
+        <select formControlName="workMode">
+          @for (mode of workModes; track mode.id) {
+            <option [value]="mode.id">{{ mode.name }}</option>
+          }
+        </select>
+      </label>
+
+      <div class="button-row">
+        <button type="button" (click)="checkIn()" [disabled]="isCheckingIn || isCheckingOut">
+          {{ isCheckingIn ? 'Checking In...' : 'Check In' }}
+        </button>
+        <button type="button" class="secondary" (click)="checkOut()" [disabled]="isCheckingIn || isCheckingOut">
+          {{ isCheckingOut ? 'Checking Out...' : 'Check Out' }}
+        </button>
+      </div>
+    </form>
+  </article>
+
+  <article class="attendance-panel">
+    <div class="panel-heading">
+      <div>
+        <h2>Monthly Attendance</h2>
+        <p>{{ attendanceScopeLabel }}</p>
+      </div>
+      <strong class="hours-total">{{ monthlyTotalHours }} hrs</strong>
+    </div>
+
+    <form [formGroup]="monthForm" class="month-form" (ngSubmit)="viewMonthlyAttendance()">
+      @if (canViewScopedAttendance) {
+        <label>
+          Employee
+          <select formControlName="employeeId">
+            <option [value]="0">{{ currentUser?.role === 'Admin' ? 'All employees' : 'My team' }}</option>
+            @for (employee of employees; track employee.employeeId) {
+              <option [value]="employee.employeeId">{{ employee.fullName }}</option>
+            }
+          </select>
+        </label>
+      }
+
+      <label>
+        Month
+        <input type="number" min="1" max="12" formControlName="month">
+      </label>
+
+      <label>
+        Year
+        <input type="number" min="2020" formControlName="year">
+      </label>
+
+      <button type="submit">View</button>
+    </form>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Employee</th>
+            <th>Check-In</th>
+            <th>Check-Out</th>
+            <th>Hours</th>
+            <th>Mode</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          @if (isLoading && records.length === 0) {
+            <tr>
+              <td colspan="7">Loading attendance...</td>
+            </tr>
+          } @else {
+            @for (record of records; track record.attendanceId) {
+              <tr>
+                <td>{{ formatDate(record.attendanceDate) }}</td>
+                <td>{{ record.employeeName }}</td>
+                <td>{{ formatTime(record.checkIn) }}</td>
+                <td>{{ formatTime(record.checkOut) }}</td>
+                <td>{{ record.totalHours ?? '--' }}</td>
+                <td>{{ record.workModeName }}</td>
+                <td><span class="status">{{ record.status }}</span></td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="7">No attendance records found.</td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <div class="pagination-row">
+      <button type="button" class="secondary" (click)="changeAttendancePage(-1)" [disabled]="attendancePageNumber <= 1">Previous</button>
+      <span>Page {{ attendancePageNumber }} of {{ attendanceTotalPages || 1 }} · {{ attendanceTotalCount }} records</span>
+      <button type="button" class="secondary" (click)="changeAttendancePage(1)" [disabled]="attendanceTotalPages > 0 && attendancePageNumber >= attendanceTotalPages">Next</button>
+    </div>
+  </article>
+</section>

@@ -14,18 +14,20 @@ public class EmployeeProjectAllocation
     [Required]
     public DateTime AssignedOn { get; set; }
 
-    [Required]
-    public DateTime CreateDate { get; set; } = DateTime.UtcNow;
+    [MaxLength(50)]
+    public string? RoleInProject { get; set; }
 
-    [Required, MaxLength(50)]
-    public string CreatedBy { get; set; } = string.Empty;
+    public int? AllocationPercentage { get; set; }
 
     public bool Status { get; set; } = true;
 
-    [MaxLength(50)]
-    public string? UpdatedBy { get; set; }
+    public DateTime CreatedOn { get; set; }
 
-    public DateTime? UpdatedDate { get; set; }
+    public int CreatedBy { get; set; }
+
+    public DateTime? UpdatedOn { get; set; }
+
+    public int? UpdatedBy { get; set; }
 
     public Employee Employee { get; set; } = null!;
 

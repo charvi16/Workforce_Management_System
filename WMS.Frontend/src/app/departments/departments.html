@@ -1,0 +1,105 @@
+<section class="page-shell">
+  <header class="page-header">
+    <div>
+      <p class="eyebrow">Departments</p>
+      <h1>{{ mode === 'list' ? 'Department List' : mode === 'detail' ? 'Department Details' : mode === 'add' ? 'Add Department' : 'Edit Department' }}</h1>
+    </div>
+    <div class="header-actions">
+      @if (mode !== 'list') {
+        <a routerLink="/departments" class="link-button">Back to Departments</a>
+      }
+      @if (canManage && mode === 'list') {
+        <a routerLink="/departments/add" class="primary-link">Add Department</a>
+      }
+    </div>
+  </header>
+
+  @if (message) {
+    <p class="success">{{ message }}</p>
+  }
+  @if (errorMessage) {
+    <p class="error">{{ errorMessage }}</p>
+  }
+
+  @if (mode === 'list') {
+    <form class="filter-panel" (ngSubmit)="searchDepartments()">
+      <label>
+        <span>Search departments</span>
+        <input type="search" name="departmentSearch" [(ngModel)]="search" placeholder="Department name or description" />
+      </label>
+      <div class="filter-actions">
+        <button type="submit">Search</button>
+        <button type="button" class="link-button" (click)="clearSearch()">Clear</button>
+      </div>
+    </form>
+
+    @if (isLoading && departments.length === 0) {
+      <p class="info">Loading departments...</p>
+    }
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Department Name</th>
+            <th>Description</th>
+            <th>Employees</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (department of departments; track department.departmentId) {
+            <tr>
+              <td>{{ department.departmentName }}</td>
+              <td>{{ department.description || '--' }}</td>
+              <td>{{ department.employeeCount }}</td>
+              <td class="actions">
+                <a [routerLink]="['/departments', department.departmentId]">View</a>
+                @if (canManage) {
+                  <a [routerLink]="['/departments/edit', department.departmentId]">Edit</a>
+                  <button type="button" (click)="deleteDepartment(department)">Delete</button>
+                }
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="4">No departments found.</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <div class="pagination-row">
+      <button type="button" class="link-button" (click)="changePage(-1)" [disabled]="pageNumber <= 1">Previous</button>
+      <span>Page {{ pageNumber }} of {{ totalPages || 1 }} - {{ totalCount }} departments</span>
+      <button type="button" class="link-button" (click)="changePage(1)" [disabled]="totalPages > 0 && pageNumber >= totalPages">Next</button>
+    </div>
+  } @else if (mode === 'detail') {
+    @if (currentDepartment) {
+      <article class="detail-card">
+        <h2>{{ currentDepartment.departmentName }}</h2>
+        <dl>
+          <div><dt>Description</dt><dd>{{ currentDepartment.description || '--' }}</dd></div>
+          <div><dt>Employees</dt><dd>{{ currentDepartment.employeeCount }}</dd></div>
+        </dl>
+      </article>
+    } @else if (!isLoading) {
+      <p class="error">Department not found.</p>
+    }
+  } @else {
+    <form class="form-grid" [formGroup]="departmentForm" (ngSubmit)="saveDepartment()">
+      <label>
+        <span>Department Name</span>
+        <input type="text" formControlName="departmentName" />
+      </label>
+      <label>
+        <span>Description</span>
+        <input type="text" formControlName="description" />
+      </label>
+      <div class="form-actions">
+        <a routerLink="/departments" class="link-button">Back to Departments</a>
+        <button type="submit" [disabled]="!canManage || isSaving">{{ isSaving ? 'Saving...' : mode === 'edit' ? 'Update Department' : 'Add Department' }}</button>
+      </div>
+    </form>
+  }
+</section>

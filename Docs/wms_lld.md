@@ -575,8 +575,12 @@ Business rules:
 - FromDate cannot be after ToDate.
 - Past leave dates are not allowed unless admin override is implemented.
 - Overlapping pending/approved leaves are not allowed.
-- Only Manager/Admin can approve or reject leave.
-- Only Pending leave can be cancelled.
+- Employee, Manager, and Admin can apply leave for themselves.
+- Employee leave is approved or rejected by Manager/Admin.
+- Manager leave is approved or rejected by Admin.
+- Admin leave is auto-approved with ApprovedBy set to the admin employee record.
+- Users cannot approve or reject their own leave.
+- Own pending/approved leave can be cancelled.
 
 ```csharp
 public interface ILeaveService
@@ -596,7 +600,6 @@ public interface ILeaveService
 | Method | Endpoint | Access | Description |
 |---|---|---|---|
 | POST | `/api/v1/auth/login` | Public | Login and generate JWT |
-| POST | `/api/v1/auth/register` | Admin | Create user login |
 | POST | `/api/v1/auth/change-password` | Authenticated | Change password |
 
 ### 9.2 Employee APIs
@@ -605,7 +608,7 @@ public interface ILeaveService
 |---|---|---|---|
 | GET | `/api/v1/employees` | Admin/Manager | List/search employees |
 | GET | `/api/v1/employees/{id}` | Admin/Manager/Self | Get employee details |
-| POST | `/api/v1/employees` | Admin | Create employee |
+| POST | `/api/v1/employees` | Admin | Create employee and login account |
 | PUT | `/api/v1/employees/{id}` | Admin | Update employee |
 | DELETE | `/api/v1/employees/{id}` | Admin | Soft deactivate employee |
 
@@ -613,21 +616,21 @@ public interface ILeaveService
 
 | Method | Endpoint | Access | Description |
 |---|---|---|---|
-| POST | `/api/v1/attendance/check-in` | Employee | Check in |
-| POST | `/api/v1/attendance/check-out` | Employee | Check out |
-| GET | `/api/v1/attendance/monthly` | Employee/Manager/Admin | Monthly attendance |
-| GET | `/api/v1/attendance/team` | Manager/Admin | Team attendance |
+| POST | `/api/v1/attendance/check-in` | Employee/Manager/Admin | Check in for self |
+| POST | `/api/v1/attendance/check-out` | Employee/Manager/Admin | Check out for self |
+| GET | `/api/v1/attendance/monthly` | Employee/Manager/Admin | Monthly attendance; employee sees self, manager sees self/team, admin sees all |
+| GET | `/api/v1/attendance/employees` | Employee/Manager/Admin | Employees available for attendance view scope |
 
 ### 9.4 Leave APIs
 
 | Method | Endpoint | Access | Description |
 |---|---|---|---|
-| POST | `/api/v1/leaves` | Employee | Apply leave |
-| PUT | `/api/v1/leaves/{id}/cancel` | Employee | Cancel leave |
-| PUT | `/api/v1/leaves/{id}/approve` | Manager/Admin | Approve leave |
-| PUT | `/api/v1/leaves/{id}/reject` | Manager/Admin | Reject leave |
-| GET | `/api/v1/leaves/my` | Employee | My leaves |
-| GET | `/api/v1/leaves/pending` | Manager/Admin | Pending approvals |
+| POST | `/api/v1/leaves/apply` | Employee/Manager/Admin | Apply leave for self |
+| PUT | `/api/v1/leaves/{id}/cancel` | Employee/Manager/Admin | Cancel own leave |
+| PUT | `/api/v1/leaves/{id}/review` | Manager/Admin | Approve or reject according to approval matrix |
+| GET | `/api/v1/leaves` | Employee/Manager/Admin | Leave status list scoped by role |
+| GET | `/api/v1/leaves/statistics` | Employee/Manager/Admin | Leave statistics scoped by role |
+| GET | `/api/v1/leaves/employees` | Employee/Manager/Admin | Employees available for leave view scope |
 
 ### 9.5 Department APIs
 
@@ -760,7 +763,6 @@ public class ExceptionMiddleware
 /src/app
   /auth
     login
-    register
     auth.service.ts
     auth.guard.ts
     auth.interceptor.ts
@@ -931,19 +933,19 @@ Return updated attendance
 ## 15. Leave Approval Flow
 
 ```text
-Employee applies leave
+Employee/Manager/Admin applies leave for self
         |
         v
 API validates dates and overlapping leaves
         |
         v
-Leave saved with Pending status
+Employee/Manager leave saved with Pending status; Admin leave saved as Approved
         |
         v
-Manager sees pending leave request
+Manager sees Employee requests; Admin sees Employee and Manager requests
         |
         v
-Manager approves/rejects
+Manager/Admin approves or rejects according to applicant role
         |
         v
 Leave status updated with ApprovedBy and ApprovedOn

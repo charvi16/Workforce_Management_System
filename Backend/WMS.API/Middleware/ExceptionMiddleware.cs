@@ -19,13 +19,18 @@ public class ExceptionMiddleware
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Unhandled exception occurred");
+            _logger.LogError(ex, "Unhandled exception occurred. Inner exception: {InnerException}", ex.InnerException?.Message);
             context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+            var environment = context.RequestServices.GetRequiredService<IWebHostEnvironment>();
+            var errors = environment.IsDevelopment()
+                ? new[] { ex.Message, ex.InnerException?.Message }.Where(message => !string.IsNullOrWhiteSpace(message)).ToArray()
+                : new[] { "An unexpected server error occurred." };
+
             await context.Response.WriteAsJsonAsync(new
             {
                 success = false,
                 message = "An unexpected error occurred.",
-                errors = new[] { ex.Message }
+                errors
             });
         }
     }

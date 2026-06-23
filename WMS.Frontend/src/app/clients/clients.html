@@ -1,0 +1,125 @@
+<section class="workspace">
+    <header class="page-header">
+      <div>
+        <p class="eyebrow">Clients</p>
+        <h1>{{ mode === 'list' ? 'Client Directory' : mode === 'detail' ? 'Client Details' : mode === 'add' ? 'Add Client' : 'Edit Client' }}</h1>
+      </div>
+      <div class="header-actions">
+        @if (mode !== 'list') {
+          <a routerLink="/clients" class="link-button">Back to Clients</a>
+        }
+        @if (canManage && mode === 'list') {
+          <a routerLink="/clients/add" class="primary-link">Add Client</a>
+        }
+      </div>
+    </header>
+
+  @if (mode === 'list') {
+    <section class="toolbar">
+      <input type="search" [(ngModel)]="search" placeholder="Search clients" />
+      <select [(ngModel)]="statusFilter">
+        <option value="all">All</option>
+        <option value="active">Active</option>
+        <option value="inactive">Inactive</option>
+      </select>
+      <button type="button" (click)="searchClients()">Search</button>
+    </section>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Client Name</th>
+            <th>Location</th>
+            <th>Phone Number</th>
+            <th>Status</th>
+            <th>Project Count</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (client of clients; track client.clientId) {
+            <tr>
+              <td>{{ client.clientName }}</td>
+              <td>{{ client.clientLocation || '--' }}</td>
+              <td>{{ client.clientPhoneNumber || '--' }}</td>
+              <td><span class="status" [class.status-inactive]="!client.status">{{ client.status ? 'Active' : 'Inactive' }}</span></td>
+              <td>{{ client.projectCount }}</td>
+              <td class="actions">
+                <a [routerLink]="['/clients', client.clientId]">View</a>
+                @if (canManage) {
+                  <a [routerLink]="['/clients/edit', client.clientId]">Edit</a>
+                  <button type="button" (click)="deactivate(client)">Deactivate</button>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <div class="pagination">
+      <button type="button" (click)="changePage(-1)" [disabled]="pageNumber <= 1">Previous</button>
+      <span>Page {{ pageNumber }} of {{ totalPages || 1 }} | {{ totalCount }} records</span>
+      <button type="button" (click)="changePage(1)" [disabled]="totalPages > 0 && pageNumber >= totalPages">Next</button>
+    </div>
+  } @else if (mode === 'detail') {
+    @if (currentClient) {
+      <article class="detail-card">
+        <h2>{{ currentClient.clientName }}</h2>
+        <dl>
+          <div><dt>Address</dt><dd>{{ currentClient.clientAddress || '--' }}</dd></div>
+          <div><dt>Phone</dt><dd>{{ currentClient.clientPhoneNumber || '--' }}</dd></div>
+          <div><dt>Location</dt><dd>{{ currentClient.clientLocation || '--' }}</dd></div>
+          <div><dt>Status</dt><dd><span class="status" [class.status-inactive]="!currentClient.status">{{ currentClient.status ? 'Active' : 'Inactive' }}</span></dd></div>
+          <div><dt>Projects</dt><dd>{{ currentClient.projectCount }}</dd></div>
+        </dl>
+      </article>
+    }
+  } @else {
+    <form class="form-grid" [formGroup]="clientForm" (ngSubmit)="saveClient()">
+      <label>
+        <span>Client Name</span>
+        <input type="text" formControlName="clientName" />
+        @if (clientForm.controls.clientName.touched && clientForm.controls.clientName.invalid) {
+          <small>Client name is required.</small>
+        }
+      </label>
+      <label>
+        <span>Location</span>
+        <input type="text" formControlName="clientLocation" />
+      </label>
+      <label>
+        <span>Phone Number</span>
+        <input type="tel" maxlength="15" formControlName="clientPhoneNumber" />
+        @if (clientForm.controls.clientPhoneNumber.touched && clientForm.controls.clientPhoneNumber.invalid) {
+          <small>Use digits, +, spaces, hyphens, or parentheses only.</small>
+        }
+      </label>
+      <label class="full">
+        <span>Address</span>
+        <textarea rows="3" formControlName="clientAddress"></textarea>
+      </label>
+      <label>
+        <span>Status</span>
+        <select formControlName="status">
+          <option [ngValue]="true">Active</option>
+          <option [ngValue]="false">Inactive</option>
+        </select>
+      </label>
+      <div class="form-actions">
+        <a routerLink="/clients" class="link-button">Back to Clients</a>
+        <button type="submit" [disabled]="isSaving">
+          {{ isSaving ? 'Saving...' : mode === 'edit' ? 'Update Client' : 'Add Client' }}
+        </button>
+      </div>
+    </form>
+  }
+
+  @if (message) {
+    <p class="success">{{ message }}</p>
+  }
+  @if (errorMessage) {
+    <p class="error">{{ errorMessage }}</p>
+  }
+  </section>

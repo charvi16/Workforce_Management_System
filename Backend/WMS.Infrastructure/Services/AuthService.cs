@@ -23,43 +23,11 @@ public class AuthService : IAuthService
         _configuration = configuration;
     }
 
-    public async Task<RegisterResponseDto> RegisterAsync(RegisterRequestDto request, CancellationToken cancellationToken = default)
-    {
-        var username = request.Username.Trim();
-
-        if (await _dbContext.UserLogins.AnyAsync(u => u.Username == username, cancellationToken))
-        {
-            throw new InvalidOperationException("Username already exists.");
-        }
-
-        var role = await _dbContext.Roles.FirstOrDefaultAsync(r => r.RoleId == request.RoleId, cancellationToken);
-        if (role is null)
-        {
-            throw new InvalidOperationException("Invalid role selected.");
-        }
-
-        var user = new UserLogin
-        {
-            Username = username,
-            PasswordHash = PasswordHasher.Hash(request.Password),
-            RoleId = role.RoleId
-        };
-
-        _dbContext.UserLogins.Add(user);
-        await _dbContext.SaveChangesAsync(cancellationToken);
-
-        return new RegisterResponseDto
-        {
-            UserId = user.UserId,
-            Username = user.Username,
-            Role = role.RoleName
-        };
-    }
-
     public async Task<AuthResponseDto> LoginAsync(LoginRequestDto request, CancellationToken cancellationToken = default)
     {
         var username = request.Username.Trim();
         var user = await _dbContext.UserLogins
+            .Include(u => u.Employee)
             .Include(u => u.Role)
             .FirstOrDefaultAsync(u => u.Username == username, cancellationToken);
 
@@ -77,6 +45,7 @@ public class AuthService : IAuthService
         return new AuthResponseDto
         {
             UserId = user.UserId,
+            EmployeeId = user.EmployeeId,
             Username = user.Username,
             Role = user.Role.RoleName,
             Token = token,
@@ -92,6 +61,7 @@ public class AuthService : IAuthService
             new Claim(JwtRegisteredClaimNames.Sub, user.UserId.ToString()),
             new Claim(JwtRegisteredClaimNames.UniqueName, user.Username),
             new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
+            new Claim("employee_id", user.EmployeeId.ToString()),
             new Claim(ClaimTypes.Name, user.Username),
             new Claim(ClaimTypes.Role, user.Role.RoleName)
         };

@@ -1,6 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using WMS.Domain.Enums;
-
 namespace WMS.Domain.Entities;
 
 public class Project
@@ -17,7 +15,8 @@ public class Project
 
     public DateTime? EndDate { get; set; }
 
-    public ProjectStatus Status { get; set; } = ProjectStatus.Active;
+    [Required, MaxLength(20)]
+    public string Status { get; set; } = "Planned";
 
     public Client? Client { get; set; }
 

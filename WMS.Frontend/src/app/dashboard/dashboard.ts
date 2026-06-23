@@ -1,7 +1,13 @@
-import { Component, inject } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { Component, OnInit, inject } from '@angular/core';
+import { NavigationEnd, Router } from '@angular/router';
 import { AuthService, CurrentUser } from '../auth/auth.service';
+import { Announcement, AnnouncementsService } from '../announcements/announcements.service';
+import { Attendance } from '../attendance/attendance';
+import { Departments } from '../departments/departments';
 import { EmployeeManagement } from '../employees/employee-management';
+import { Leave } from '../leaves/leave';
+import { DashboardResponse, DashboardService } from './dashboard.service';
+import { filter, finalize, timeout } from 'rxjs';
 
 interface SummaryCard {
   label: string;
@@ -9,85 +15,218 @@ interface SummaryCard {
   detail: string;
 }
 
-type DashboardSection = 'dashboard' | 'employees' | 'attendance' | 'leaves' | 'projects' | 'reports';
+interface QuickAction {
+  label: string;
+  route: string;
+}
+
+interface DashboardRow {
+  name: string;
+  detail: string;
+  status: string;
+}
+
+interface KpiRow {
+  label: string;
+  value: string;
+}
+
+type DashboardSection = 'dashboard' | 'employees' | 'departments' | 'attendance' | 'leaves' | 'clients' | 'projects' | 'reports' | 'announcements' | 'audit-logs';
 
 @Component({
   selector: 'app-dashboard',
-  imports: [RouterLink, EmployeeManagement],
+  imports: [Attendance, Departments, EmployeeManagement, Leave],
   templateUrl: './dashboard.html',
   styleUrl: './dashboard.scss'
 })
-export class Dashboard {
+export class Dashboard implements OnInit {
   private readonly authService = inject(AuthService);
+  private readonly announcementsService = inject(AnnouncementsService);
+  private readonly dashboardService = inject(DashboardService);
   private readonly router = inject(Router);
 
   protected readonly user: CurrentUser = this.authService.getCurrentUser() ?? {
     userId: 0,
+    employeeId: 0,
     username: 'Guest',
     role: 'Employee',
     expiresAtUtc: ''
   };
 
-  protected readonly role = this.user.role;
+  protected readonly role = this.normalizeRole(this.user.role);
   protected selectedSection: DashboardSection = 'dashboard';
-  protected readonly navItems: { id: DashboardSection; label: string }[] = [
-    { id: 'dashboard', label: 'Dashboard' },
-    { id: 'employees', label: 'Employees' },
-    { id: 'attendance', label: 'Attendance' },
-    { id: 'leaves', label: 'Leaves' },
-    { id: 'projects', label: 'Projects' },
-    { id: 'reports', label: 'Reports' }
-  ];
-  protected readonly summaryCards = this.getSummaryCards(this.role);
-  protected readonly quickActions = this.getQuickActions(this.role);
-  protected readonly attendanceRows = this.role === 'Employee'
-    ? [
-        { name: 'Today', checkIn: '09:42 AM', status: 'Checked In' },
-        { name: 'Yesterday', checkIn: '09:35 AM', status: 'Present' },
-        { name: 'Monday', checkIn: '--', status: 'Leave' }
-      ]
-    : [
-        { name: 'Ananya Sharma', checkIn: '09:31 AM', status: 'Present' },
-        { name: 'Rohan Mehta', checkIn: '--', status: 'Absent' },
-        { name: 'Karan Singh', checkIn: '10:15 AM', status: 'Late' }
+  protected dashboardData: DashboardResponse | null = null;
+  protected visibleAnnouncements: Announcement[] = [];
+  protected announcementError = '';
+  protected isDashboardLoading = false;
+  protected dashboardError = '';
+  protected lastUpdatedAt = '';
+  protected get navItems(): { id: DashboardSection; label: string }[] {
+    const items: { id: DashboardSection; label: string }[] = [
+      { id: 'dashboard', label: 'Dashboard' },
+      { id: 'employees', label: 'Employees' },
+      { id: 'attendance', label: 'Attendance' },
+      { id: 'leaves', label: 'Leaves' },
+      { id: 'clients', label: 'Clients' },
+      { id: 'projects', label: 'Projects' },
+      { id: 'reports', label: 'Reports' },
+      { id: 'announcements', label: 'Announcements' }
+    ];
+
+    if (this.role === 'Admin') {
+      items.splice(2, 0, { id: 'departments', label: 'Departments' });
+      items.push({ id: 'audit-logs', label: 'Audit Logs' });
+    }
+
+    return items;
+  }
+  protected get summaryCards(): SummaryCard[] {
+    if (!this.dashboardData) {
+      return this.getSummaryCards(this.role);
+    }
+
+    const kpis = this.dashboardData.kpis;
+    if (this.role === 'Admin') {
+      return [
+        { label: 'Total Employees', value: String(kpis.totalEmployees), detail: 'All users in the company' },
+        { label: 'Total Departments', value: String(kpis.totalDepartments ?? 0), detail: 'Operating units' },
+        { label: 'Present Today', value: String(kpis.presentToday), detail: `${kpis.attendanceRate}% attendance rate` },
+        { label: 'Absent Today', value: String(kpis.absentToday), detail: 'No attendance recorded today' },
+        { label: 'On Leave Today', value: String(kpis.onLeaveToday), detail: 'Approved leave' },
+        { label: 'Pending Leaves', value: String(kpis.pendingLeaves), detail: 'Awaiting review' },
+        { label: 'Active Projects', value: String(kpis.activeProjects), detail: 'Running projects' },
+        { label: 'Total Clients', value: String(kpis.totalClients), detail: 'Active clients' }
       ];
+    }
 
-  protected readonly approvalRows = this.role === 'Employee'
-    ? [
-        { person: 'Sick Leave', type: '10 Jun - 12 Jun', status: 'Pending' },
-        { person: 'Casual Leave', type: '02 Jun', status: 'Approved' }
-      ]
-    : [
-        { person: 'Riya Sharma', type: 'Sick', status: 'Pending approval' },
-        { person: 'Aman Verma', type: 'Casual', status: 'Pending approval' }
+    if (this.role === 'Manager') {
+      return [
+        { label: 'Total Employees', value: String(kpis.totalEmployees), detail: 'Scoped to your department' },
+        { label: 'Total Departments', value: String(kpis.totalDepartments ?? 0), detail: 'Your operating unit' },
+        { label: 'Present Today', value: String(kpis.presentToday), detail: `${kpis.attendanceRate}% attendance rate` },
+        { label: 'Absent Today', value: String(kpis.absentToday), detail: 'No attendance recorded today' },
+        { label: 'On Leave Today', value: String(kpis.onLeaveToday), detail: 'Team leave count' },
+        { label: 'Pending Leaves', value: String(kpis.pendingLeaves), detail: 'Needs action' },
+        { label: 'Active Projects', value: String(kpis.activeProjects), detail: 'Team projects' }
       ];
+    }
 
-  protected readonly projectRows = this.role === 'Employee'
-    ? [
-        { name: 'WMS Portal', client: 'Developer', status: 'Assigned' },
-        { name: 'HR Analytics', client: 'Tester', status: 'Assigned' }
-      ]
-    : [
-        { name: 'HR Portal', client: 'Infosys', status: 'Active' },
-        { name: 'Payroll System', client: 'TCS', status: 'Active' },
-        { name: 'CRM Upgrade', client: 'Wipro', status: 'Completed' }
-      ];
+    return [
+      { label: 'Total Employees', value: String(kpis.totalEmployees), detail: 'Scoped employees' },
+      { label: 'Total Departments', value: String(kpis.totalDepartments ?? 0), detail: 'Scoped departments' },
+      { label: 'Present Today', value: String(kpis.presentToday), detail: 'Today' },
+      { label: 'Absent Today', value: String(kpis.absentToday), detail: 'Today' },
+      { label: 'Attendance Rate', value: `${kpis.attendanceRate}%`, detail: 'This month' },
+      { label: 'Monthly Hours', value: kpis.averageWorkingHours.toFixed(1), detail: 'Average working hours' },
+      { label: 'Pending Leaves', value: String(kpis.pendingLeaves), detail: 'Awaiting approval' },
+      { label: 'Assigned Projects', value: String(kpis.activeProjects), detail: 'Active allocations' }
+    ];
+  }
 
-  protected readonly announcements = [
-    'Office closed on 15 June for maintenance.',
-    'Submit monthly timesheets before 28 June.',
-    'New HR policy updated.'
-  ];
+  protected get quickActions(): QuickAction[] {
+    return this.getQuickActions(this.role);
+  }
 
-  protected readonly recentActivity = this.role === 'Employee'
-    ? ['You checked in at 09:42 AM', 'You applied for Casual Leave', 'Your leave was approved']
-    : ['Admin added new employee Riya Sharma', 'Manager approved leave for Aman Verma', 'Project WMS Portal was updated'];
+  protected get kpiRows(): KpiRow[] {
+    const kpis = this.dashboardData?.kpis;
+    if (!kpis) {
+      return [];
+    }
+
+    return [
+      { label: 'Active Employees', value: String(kpis.activeEmployees) },
+      { label: 'On Leave Today', value: String(kpis.onLeaveToday) },
+      { label: 'Pending Leaves', value: String(kpis.pendingLeaves) },
+      { label: 'Active Projects', value: String(kpis.activeProjects) },
+      { label: 'Delayed Projects', value: String(kpis.delayedProjects) },
+      { label: 'Total Clients', value: String(kpis.totalClients) },
+      { label: 'Unallocated Employees', value: String(kpis.unallocatedEmployees) },
+      { label: 'Average Working Hours', value: kpis.averageWorkingHours.toFixed(1) },
+      { label: 'Late Check-ins Today', value: String(kpis.lateCheckInsToday) },
+      { label: 'Attendance Rate', value: `${kpis.attendanceRate}%` }
+    ];
+  }
+
+  protected get attendanceRows(): DashboardRow[] {
+    return this.dashboardData?.todayAttendance?.map((row) => ({
+      name: row.name,
+      detail: row.detail || '--',
+      status: row.status
+    })) ?? [];
+  }
+
+  protected get approvalRows() {
+    if (this.dashboardData?.pendingApprovals?.length) {
+      return this.dashboardData.pendingApprovals.map((item) => ({ person: item, type: 'Pending', status: 'Pending' }));
+    }
+
+    return this.role === 'Employee'
+      ? []
+      : [];
+  }
+
+  protected get projectRows(): DashboardRow[] {
+    return this.dashboardData?.projectRows?.map((row) => ({
+      name: row.name,
+      detail: row.detail || '--',
+      status: row.status
+    })) ?? [];
+  }
+
+  protected get attendanceOverviewRows(): { label: string; value: number; percent: number; className: string }[] {
+    const distribution = this.dashboardData?.attendanceDistribution ?? [];
+    const total = distribution.reduce((sum, item) => sum + Number(item.value), 0);
+    return [
+      { label: 'Present', className: 'present' },
+      { label: 'Absent', className: 'absent' },
+      { label: 'Leave', className: 'leave' }
+    ].map((item) => {
+      const value = Number(distribution.find((point) => point.label === item.label)?.value ?? 0);
+      return {
+        ...item,
+        value,
+        percent: total === 0 ? 0 : Math.round((value * 100) / total)
+      };
+    });
+  }
+
+  protected get announcements(): string[] {
+    if (this.visibleAnnouncements.length) {
+      return this.visibleAnnouncements.map((announcement) => `${announcement.title}: ${announcement.message}`);
+    }
+
+    return this.dashboardData?.announcements ?? [];
+  }
+
+  protected get alerts(): { type: string; message: string }[] {
+    return this.dashboardData?.alerts ?? [];
+  }
+
+  ngOnInit(): void {
+    this.refreshDashboard();
+    this.router.events
+      .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd && event.urlAfterRedirects === '/dashboard'))
+      .subscribe(() => this.refreshDashboard());
+  }
+
+  protected get recentActivity(): string[] {
+    if (this.dashboardData?.recentActivities?.length) {
+      return this.dashboardData.recentActivities;
+    }
+
+    return [];
+  }
 
   protected get activeNavLabel(): string {
     return this.navItems.find((item) => item.id === this.selectedSection)?.label ?? 'Dashboard';
   }
 
   selectSection(section: DashboardSection): void {
+    if (['clients', 'projects', 'reports', 'announcements', 'audit-logs'].includes(section)) {
+      void this.router.navigateByUrl(`/${section}`);
+      return;
+    }
+
     this.selectedSection = section;
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -97,57 +236,129 @@ export class Dashboard {
     void this.router.navigateByUrl('/login');
   }
 
+  private loadDashboard(): void {
+    this.isDashboardLoading = true;
+    this.dashboardError = '';
+    this.dashboardService.getDashboard(this.role as 'Admin' | 'Manager' | 'Employee')
+      .pipe(
+        timeout(10000),
+        finalize(() => {
+          this.isDashboardLoading = false;
+        })
+      )
+      .subscribe({
+      next: (response) => {
+        this.dashboardData = response.data ?? null;
+        this.visibleAnnouncements = [];
+        this.announcementError = '';
+        this.dashboardError = response.data ? '' : (response.message || 'Dashboard data is not available.');
+        this.lastUpdatedAt = response.data ? new Date().toLocaleTimeString() : this.lastUpdatedAt;
+        if (response.data) {
+          this.loadAnnouncements();
+        }
+      },
+      error: (error) => {
+        this.redirectIfUnauthorized(error);
+        this.dashboardData = null;
+        this.dashboardError = this.getDashboardError(error);
+      }
+    });
+  }
+
+  protected refreshDashboard(): void {
+    this.loadDashboard();
+  }
+
+  private loadAnnouncements(): void {
+    this.announcementsService.getAllVisibleAnnouncements().subscribe({
+      next: (response) => {
+        this.visibleAnnouncements = response.data?.items ?? [];
+        this.announcementError = '';
+      },
+      error: (error) => {
+        this.visibleAnnouncements = [];
+        this.announcementError = this.getAnnouncementsError(error);
+      }
+    });
+  }
+
   protected getSectionCards(section: DashboardSection): SummaryCard[] {
     const sectionData: Record<DashboardSection, SummaryCard[]> = {
       dashboard: this.summaryCards,
       employees: this.role === 'Employee'
         ? [
             { label: 'My Profile', value: 'Active', detail: 'Employee profile and assigned role' },
-            { label: 'Department', value: 'Engineering', detail: 'Current department assignment' },
-            { label: 'Manager', value: 'Priya Nair', detail: 'Reporting manager' }
+            { label: 'Department', value: String(this.dashboardData?.kpis?.totalDepartments ?? 0), detail: 'Current department assignment' },
+            { label: 'Assigned Projects', value: String(this.dashboardData?.kpis?.activeProjects ?? 0), detail: 'Current allocations' }
           ]
         : [
-            { label: 'Employee Directory', value: '248', detail: 'Search, view, and maintain employees' },
-            { label: 'New Joiners', value: '7', detail: 'Added this month' },
-            { label: 'Open Updates', value: '12', detail: 'Profiles needing review' }
+            { label: 'Employee Directory', value: String(this.dashboardData?.kpis?.totalEmployees ?? 0), detail: 'Search, view, and maintain employees' },
+            { label: 'Active Employees', value: String(this.dashboardData?.kpis?.activeEmployees ?? 0), detail: 'Currently active' },
+            { label: 'Departments', value: String(this.dashboardData?.kpis?.totalDepartments ?? 0), detail: 'Operating units' }
           ],
+      departments: [
+        { label: 'Departments', value: String(this.dashboardData?.kpis?.totalDepartments ?? 0), detail: 'Operating units' },
+        { label: 'Employees', value: String(this.dashboardData?.kpis?.totalEmployees ?? 0), detail: 'Assigned to departments' },
+        { label: 'Unallocated', value: String(this.dashboardData?.kpis?.unallocatedEmployees ?? 0), detail: 'Not assigned to active projects' }
+      ],
       attendance: this.role === 'Employee'
         ? [
-            { label: 'Today', value: 'Checked In', detail: '09:42 AM, WFH' },
-            { label: 'Month Hours', value: '126.5', detail: 'Tracked this month' },
-            { label: 'Late Marks', value: '1', detail: 'Current month' }
+            { label: 'Today', value: this.attendanceRows[0]?.status ?? 'Not checked in', detail: this.attendanceRows[0]?.detail ?? 'Today' },
+            { label: 'Month Hours', value: String(this.dashboardData?.kpis?.averageWorkingHours ?? 0), detail: 'Average tracked hours' },
+            { label: 'Late Marks', value: String(this.dashboardData?.kpis?.lateCheckInsToday ?? 0), detail: 'Today' }
           ]
         : [
-            { label: 'Present Today', value: '211', detail: 'Live attendance count' },
-            { label: 'Absent Today', value: '37', detail: 'Leave and no-show combined' },
-            { label: 'Late Check-ins', value: '8', detail: 'Needs manager review' }
+            { label: 'Present Today', value: String(this.dashboardData?.kpis?.presentToday ?? 0), detail: 'Live attendance count' },
+            { label: 'Absent Today', value: String(this.dashboardData?.kpis?.absentToday ?? 0), detail: 'Leave and no-show combined' },
+            { label: 'Late Check-ins', value: String(this.dashboardData?.kpis?.lateCheckInsToday ?? 0), detail: 'Needs manager review' }
           ],
       leaves: this.role === 'Employee'
         ? [
-            { label: 'Leave Balance', value: '14', detail: 'Available days' },
-            { label: 'Pending Requests', value: '1', detail: 'Awaiting approval' },
-            { label: 'Approved Leaves', value: '8', detail: 'This year' }
+            { label: 'Pending Requests', value: String(this.dashboardData?.kpis?.pendingLeaves ?? 0), detail: 'Awaiting approval' },
+            { label: 'On Leave Today', value: String(this.dashboardData?.kpis?.onLeaveToday ?? 0), detail: 'Approved leave' },
+            { label: 'Leave Records', value: String(this.dashboardData?.leaveStatistics?.reduce((sum, item) => sum + Number(item.value), 0) ?? 0), detail: 'Scoped requests' }
           ]
         : [
-            { label: 'Pending Approvals', value: '14', detail: 'Awaiting action' },
-            { label: 'Approved Leaves', value: '48', detail: 'This month' },
-            { label: 'Rejected Leaves', value: '5', detail: 'This month' }
+            { label: 'Pending Approvals', value: String(this.dashboardData?.kpis?.pendingLeaves ?? 0), detail: 'Awaiting action' },
+            { label: 'On Leave Today', value: String(this.dashboardData?.kpis?.onLeaveToday ?? 0), detail: 'Approved today' },
+            { label: 'Leave Records', value: String(this.dashboardData?.leaveStatistics?.reduce((sum, item) => sum + Number(item.value), 0) ?? 0), detail: 'Scoped requests' }
+          ],
+      clients: this.role === 'Admin'
+        ? [
+            { label: 'Total Clients', value: String(this.dashboardData?.kpis?.totalClients ?? 0), detail: 'Active accounts' },
+            { label: 'Client Projects', value: String(this.dashboardData?.kpis?.activeProjects ?? 0), detail: 'Active project count' },
+            { label: 'Delayed Projects', value: String(this.dashboardData?.kpis?.delayedProjects ?? 0), detail: 'Needs review' }
+          ]
+        : [
+            { label: 'Accessible Clients', value: String(this.dashboardData?.kpis?.totalClients ?? 0), detail: 'Assigned project clients' },
+            { label: 'Active Projects', value: String(this.dashboardData?.kpis?.activeProjects ?? 0), detail: 'Current work' },
+            { label: 'Delayed Projects', value: String(this.dashboardData?.kpis?.delayedProjects ?? 0), detail: 'Needs review' }
           ],
       projects: this.role === 'Employee'
         ? [
-            { label: 'Assigned Projects', value: '2', detail: 'Current allocations' },
-            { label: 'Primary Role', value: 'Developer', detail: 'Project contribution' },
-            { label: 'Next Review', value: '15 Jun', detail: 'Allocation checkpoint' }
+            { label: 'Assigned Projects', value: String(this.dashboardData?.kpis?.activeProjects ?? 0), detail: 'Current allocations' },
+            { label: 'Delayed Projects', value: String(this.dashboardData?.kpis?.delayedProjects ?? 0), detail: 'Needs attention' },
+            { label: 'Project Rows', value: String(this.projectRows.length), detail: 'Shown below' }
           ]
         : [
-            { label: 'Active Projects', value: '8', detail: 'Currently running' },
-            { label: 'Completed Projects', value: '3', detail: 'Closed this quarter' },
-            { label: 'Allocated Employees', value: '126', detail: 'Across active projects' }
+            { label: 'Active Projects', value: String(this.dashboardData?.kpis?.activeProjects ?? 0), detail: 'Currently running' },
+            { label: 'Delayed Projects', value: String(this.dashboardData?.kpis?.delayedProjects ?? 0), detail: 'Needs attention' },
+            { label: 'Unallocated Employees', value: String(this.dashboardData?.kpis?.unallocatedEmployees ?? 0), detail: 'Across active employees' }
           ],
       reports: [
         { label: 'Attendance Reports', value: 'Ready', detail: 'Monthly attendance export' },
         { label: 'Leave Reports', value: 'Ready', detail: 'Leave usage and approvals' },
         { label: 'Employee Reports', value: 'Ready', detail: 'Directory and role reports' }
+      ],
+      announcements: [
+        { label: 'Active Notices', value: String(this.dashboardData?.announcements?.length ?? 0), detail: 'Visible announcements' },
+        { label: 'Audience', value: this.role, detail: 'Role-filtered notice board' },
+        { label: 'Latest', value: this.dashboardData?.announcements?.[0] ? 'Available' : 'None', detail: 'Most recent announcement' }
+      ],
+      'audit-logs': [
+        { label: 'Audit Logs', value: 'Admin', detail: 'System activity history' },
+        { label: 'Client Actions', value: 'Tracked', detail: 'Create, update, deactivate' },
+        { label: 'Announcement Actions', value: 'Tracked', detail: 'Create, update, deactivate' }
       ]
     };
 
@@ -157,43 +368,142 @@ export class Dashboard {
   private getSummaryCards(role: string): SummaryCard[] {
     if (role === 'Admin') {
       return [
-        { label: 'Total Employees', value: '248', detail: 'Across 6 departments' },
-        { label: 'Present Today', value: '211', detail: '82% attendance rate' },
-        { label: 'Absent Today', value: '37', detail: 'Includes leave and no-show' },
-        { label: 'Pending Leaves', value: '14', detail: 'Awaiting approval' },
-        { label: 'Active Projects', value: '8', detail: '126 employees allocated' },
-        { label: 'Departments', value: '6', detail: 'Operating units' }
+        { label: 'Total Employees', value: '...', detail: 'Across departments' },
+        { label: 'Total Departments', value: '...', detail: 'Operating units' },
+        { label: 'Present Today', value: '...', detail: 'Loading attendance' },
+        { label: 'Absent Today', value: '...', detail: 'Loading attendance' },
+        { label: 'Pending Leaves', value: '...', detail: 'Awaiting approval' },
+        { label: 'Active Projects', value: '...', detail: 'Current projects' }
       ];
     }
 
     if (role === 'Manager') {
       return [
-        { label: 'Team Members', value: '32', detail: 'Direct and project reports' },
-        { label: 'Present Today', value: '28', detail: '4 exceptions' },
-        { label: 'Pending Approvals', value: '6', detail: 'Leave and attendance' },
-        { label: 'Active Projects', value: '4', detail: 'Team allocations' },
-        { label: 'On Leave Today', value: '3', detail: 'Approved requests' }
+        { label: 'Total Employees', value: '...', detail: 'Direct and project reports' },
+        { label: 'Total Departments', value: '...', detail: 'Scoped departments' },
+        { label: 'Present Today', value: '...', detail: 'Loading attendance' },
+        { label: 'Absent Today', value: '...', detail: 'Loading attendance' },
+        { label: 'Pending Approvals', value: '...', detail: 'Leave and attendance' },
+        { label: 'Active Projects', value: '...', detail: 'Team allocations' },
+        { label: 'On Leave Today', value: '...', detail: 'Approved requests' }
       ];
     }
 
     return [
-      { label: 'Attendance Status', value: 'Checked In', detail: '09:42 AM, WFH' },
-      { label: 'Hours This Month', value: '126.5', detail: 'Target 160 hrs' },
-      { label: 'Leave Balance', value: '14', detail: 'Available days' },
-      { label: 'Pending Leaves', value: '1', detail: 'Awaiting approval' },
-      { label: 'Assigned Projects', value: '2', detail: 'Current allocations' }
+      { label: 'Total Employees', value: '...', detail: 'Scoped employees' },
+      { label: 'Total Departments', value: '...', detail: 'Scoped departments' },
+      { label: 'Present Today', value: '...', detail: 'Today' },
+      { label: 'Absent Today', value: '...', detail: 'Today' },
+      { label: 'Attendance Status', value: 'Not checked in', detail: 'Today' },
+      { label: 'Hours This Month', value: '0', detail: 'Tracked hours' },
+      { label: 'Leave Balance', value: '0', detail: 'Available days' },
+      { label: 'Pending Leaves', value: '0', detail: 'Awaiting approval' },
+      { label: 'Assigned Projects', value: '0', detail: 'Current allocations' }
     ];
   }
 
-  private getQuickActions(role: string): string[] {
+  protected openQuickAction(action: QuickAction): void {
+    void this.router.navigateByUrl(action.route);
+  }
+
+  private getQuickActions(role: string): QuickAction[] {
     if (role === 'Admin') {
-      return ['Add Employee', 'Add Department', 'Add Project', 'Create Announcement', 'Generate Report'];
+      return [
+        { label: 'Add Employee', route: '/employees/add' },
+        { label: 'View Employees', route: '/employees' },
+        { label: 'Add Department', route: '/departments/add' },
+        { label: 'View Departments', route: '/departments' },
+        { label: 'Add Client', route: '/clients/add' },
+        { label: 'View Clients', route: '/clients' },
+        { label: 'Add Project', route: '/projects/add' },
+        { label: 'View Projects', route: '/projects' },
+        { label: 'Reports', route: '/reports' },
+        { label: 'Create Announcement', route: '/announcements/add' }
+      ];
     }
 
     if (role === 'Manager') {
-      return ['Approve Leaves', 'View Team Attendance', 'Assign Project', 'Generate Timesheet'];
+      return [
+        { label: 'Team Attendance', route: '/attendance' },
+        { label: 'Leave Approvals', route: '/leaves' },
+        { label: 'Team Projects', route: '/projects' },
+        { label: 'Reports', route: '/reports' },
+        { label: 'Announcements', route: '/announcements' }
+      ];
     }
 
-    return ['Check In', 'Check Out', 'Apply Leave', 'View Attendance', 'View My Projects'];
+    return [
+      { label: 'Check In / Check Out', route: '/attendance' },
+      { label: 'Apply Leave', route: '/leaves' },
+      { label: 'My Leave Status', route: '/leaves' },
+      { label: 'My Attendance', route: '/attendance' },
+      { label: 'My Projects', route: '/projects' },
+      { label: 'Announcements', route: '/announcements' }
+    ];
+  }
+
+  private normalizeRole(role: string): 'Admin' | 'Manager' | 'Employee' {
+    const normalized = role.trim().toLowerCase();
+    if (normalized === 'admin') {
+      return 'Admin';
+    }
+    if (normalized === 'manager') {
+      return 'Manager';
+    }
+    return 'Employee';
+  }
+
+  private getDashboardError(error: unknown): string {
+    const response = error as {
+      name?: string;
+      status?: number;
+      error?: { errors?: unknown; message?: string; Message?: string; title?: string; Title?: string };
+      message?: string;
+    };
+
+    if (response.status === 0) {
+      return 'Cannot reach the backend API. Make sure the API is running on http://localhost:5000.';
+    }
+
+    if (response.status === 401 || response.status === 403) {
+      return 'Your session is not authorized to load dashboard metrics. Login again with the correct role.';
+    }
+
+    if (response.name === 'TimeoutError') {
+      return 'Dashboard metrics request timed out. Retry after confirming the API is running on http://localhost:5000.';
+    }
+
+    const errors = response.error?.errors;
+    if (Array.isArray(errors) && errors.length > 0) {
+      return String(errors[0]);
+    }
+
+    return response.error?.message
+      ?? response.error?.Message
+      ?? response.error?.title
+      ?? response.error?.Title
+      ?? response.message
+      ?? 'Unable to load dashboard metrics.';
+  }
+
+  private getAnnouncementsError(error: unknown): string {
+    const response = error as { status?: number };
+    if (response.status === 401 || response.status === 403) {
+      return 'Login again to refresh announcements.';
+    }
+
+    if (response.status === 0) {
+      return 'Cannot reach the announcements API.';
+    }
+
+    return 'Unable to refresh announcements.';
+  }
+
+  private redirectIfUnauthorized(error: unknown): void {
+    const response = error as { status?: number };
+    if (response.status === 401 || response.status === 403) {
+      this.authService.logout();
+      void this.router.navigateByUrl('/login');
+    }
   }
 }

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using WMS.Application.Common;
 using WMS.Application.DTOs.Departments;
@@ -17,10 +18,21 @@ public class DepartmentsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetAll(CancellationToken cancellationToken)
+    public async Task<IActionResult> Search(
+        [FromQuery] string? search,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 10,
+        CancellationToken cancellationToken = default)
     {
-        var departments = await _departmentService.GetAllAsync(cancellationToken);
-        return Ok(ApiResponse<IReadOnlyList<DepartmentDto>>.Ok(departments, "Departments retrieved successfully."));
+        var departments = await _departmentService.SearchAsync(search, pageNumber, pageSize, cancellationToken);
+        return Ok(ApiResponse<PagedResult<DepartmentDto>>.Ok(departments, "Departments retrieved successfully."));
+    }
+
+    [HttpGet("options")]
+    public async Task<IActionResult> Options(CancellationToken cancellationToken)
+    {
+        var departments = await _departmentService.GetOptionsAsync(cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<DepartmentDto>>.Ok(departments, "Department options retrieved successfully."));
     }
 
     [HttpGet("{departmentId:int}")]
@@ -38,13 +50,22 @@ public class DepartmentsController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Create(DepartmentRequestDto request, CancellationToken cancellationToken)
     {
-        var department = await _departmentService.CreateAsync(request, cancellationToken);
-        return CreatedAtAction(nameof(GetById), new { departmentId = department.DepartmentId }, ApiResponse<DepartmentDto>.Ok(department, "Department created successfully."));
+        try
+        {
+            var department = await _departmentService.CreateAsync(request, cancellationToken);
+            return CreatedAtAction(nameof(GetById), new { departmentId = department.DepartmentId }, ApiResponse<DepartmentDto>.Ok(department, "Department created successfully."));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<DepartmentDto>.Fail("Department creation failed.", ex.Message));
+        }
     }
 
     [HttpPut("{departmentId:int}")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Update(int departmentId, DepartmentRequestDto request, CancellationToken cancellationToken)
     {
         try
@@ -59,6 +80,7 @@ public class DepartmentsController : ControllerBase
     }
 
     [HttpDelete("{departmentId:int}")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Delete(int departmentId, CancellationToken cancellationToken)
     {
         try

@@ -5,6 +5,12 @@ namespace WMS.Application.DTOs.Employees;
 public class CreateEmployeeRequestDto
 {
     [Required, MaxLength(50)]
+    public string Username { get; set; } = string.Empty;
+
+    [Required, MinLength(8)]
+    public string Password { get; set; } = string.Empty;
+
+    [Required, MaxLength(50)]
     public string FirstName { get; set; } = string.Empty;
 
     [Required, MaxLength(50)]

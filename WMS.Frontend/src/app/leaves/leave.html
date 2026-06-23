@@ -1,0 +1,183 @@
+<section class="leave-shell">
+  <article class="leave-panel">
+    <div class="panel-heading">
+      <div>
+        <h2>Apply Leave</h2>
+        <p>Submit a leave request for approval.</p>
+      </div>
+    </div>
+
+    @if (message) {
+      <p class="notice success">{{ message }}</p>
+    }
+    @if (errorMessage) {
+      <p class="notice error">{{ errorMessage }}</p>
+    }
+
+    <form [formGroup]="applyForm" class="apply-form">
+      <div class="context-card">
+        <span>Employee</span>
+        <strong>{{ currentEmployee?.fullName ?? currentUser?.username ?? 'Current user' }}</strong>
+      </div>
+
+      <label>
+        Leave Type
+        <select formControlName="leaveType">
+          @for (type of leaveTypes; track type.id) {
+            <option [value]="type.id">{{ type.name }}</option>
+          }
+        </select>
+      </label>
+
+      <label>
+        From
+        <input type="date" formControlName="fromDate">
+      </label>
+
+      <label>
+        To
+        <input type="date" formControlName="toDate">
+      </label>
+
+      <label class="reason-field">
+        Reason
+        <textarea rows="3" maxlength="255" formControlName="reason"></textarea>
+      </label>
+
+      <button type="button" (click)="applyLeave()">Apply Leave</button>
+    </form>
+  </article>
+
+  <section class="stats-grid" aria-label="Leave statistics">
+    <article>
+      <span>Total</span>
+      <strong>{{ isStatsLoading ? '...' : statistics.totalRequests }}</strong>
+    </article>
+    <article>
+      <span>Pending</span>
+      <strong>{{ isStatsLoading ? '...' : statistics.pendingRequests }}</strong>
+    </article>
+    <article>
+      <span>Approved</span>
+      <strong>{{ isStatsLoading ? '...' : statistics.approvedRequests }}</strong>
+    </article>
+    <article>
+      <span>Rejected</span>
+      <strong>{{ isStatsLoading ? '...' : statistics.rejectedRequests }}</strong>
+    </article>
+    <article>
+      <span>Cancelled</span>
+      <strong>{{ isStatsLoading ? '...' : statistics.cancelledRequests }}</strong>
+    </article>
+    <article>
+      <span>Approved Days</span>
+      <strong>{{ isStatsLoading ? '...' : statistics.approvedDays }}</strong>
+    </article>
+  </section>
+
+  <article class="leave-panel">
+    <div class="panel-heading">
+      <div>
+        <h2>Leave Status</h2>
+        <p>{{ leaveScopeLabel }}</p>
+      </div>
+    </div>
+
+    <form [formGroup]="filterForm" class="filter-form" (ngSubmit)="viewLeaves()">
+      @if (canReview) {
+        <label>
+          Employee
+          <select formControlName="employeeId">
+            <option [value]="0">All employees</option>
+            @for (employee of employees; track employee.employeeId) {
+              <option [value]="employee.employeeId">{{ employee.fullName }}</option>
+            }
+          </select>
+        </label>
+      }
+
+      <label>
+        Status
+        <select formControlName="status">
+          @for (status of statuses; track status.id) {
+            <option [value]="status.id">{{ status.name }}</option>
+          }
+        </select>
+      </label>
+
+      <label>
+        From Date
+        <input type="date" formControlName="fromDate">
+      </label>
+
+      <label>
+        To Date
+        <input type="date" formControlName="toDate">
+      </label>
+
+      <label>
+        Stats Year
+        <input type="number" min="2020" formControlName="year">
+      </label>
+
+      <button type="submit">View</button>
+    </form>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Employee</th>
+            <th>Type</th>
+            <th>Dates</th>
+            <th>Days</th>
+            <th>Status</th>
+            <th>Reviewed By</th>
+            <th>Reason</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @if (isLoading && leaves.length === 0) {
+            <tr>
+              <td colspan="8">Loading leave requests...</td>
+            </tr>
+          } @else {
+            @for (leave of leaves; track leave.leaveId) {
+              <tr>
+                <td>{{ leave.employeeName }}</td>
+                <td>{{ leave.leaveTypeName }}</td>
+                <td>{{ formatDate(leave.fromDate) }} - {{ formatDate(leave.toDate) }}</td>
+                <td>{{ leave.totalDays }}</td>
+                <td><span class="status status-{{ leave.statusName.toLowerCase() }}">{{ leave.statusName }}</span></td>
+                <td>{{ leave.approverName ?? '--' }}</td>
+                <td>{{ leave.reason || '--' }}</td>
+                <td>
+                  <div class="row-actions">
+                    @if (canReviewLeave(leave)) {
+                      <button type="button" class="compact approve" (click)="reviewLeave(leave.leaveId, true)">Approve</button>
+                      <button type="button" class="compact reject" (click)="reviewLeave(leave.leaveId, false)">Reject</button>
+                    }
+                    @if (canCancel(leave)) {
+                      <button type="button" class="compact secondary" (click)="cancelLeave(leave.leaveId)">Cancel</button>
+                    }
+                  </div>
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="8">No leave requests found.</td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <div class="pagination-row">
+      <button type="button" class="secondary" (click)="changeLeavePage(-1)" [disabled]="leavePageNumber <= 1">Previous</button>
+      <span>Page {{ leavePageNumber }} of {{ leaveTotalPages || 1 }} · {{ leaveTotalCount }} records</span>
+      <button type="button" class="secondary" (click)="changeLeavePage(1)" [disabled]="leaveTotalPages > 0 && leavePageNumber >= leaveTotalPages">Next</button>
+    </div>
+  </article>
+</section>

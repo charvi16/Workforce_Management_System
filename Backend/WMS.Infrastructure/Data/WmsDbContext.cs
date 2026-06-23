@@ -24,18 +24,213 @@ public class WmsDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        var seedCreatedOn = new DateTime(2026, 6, 9, 10, 6, 12, 862, DateTimeKind.Utc).AddTicks(8730);
 
         modelBuilder.Entity<Employee>()
             .HasIndex(e => e.Email)
             .IsUnique();
 
+        modelBuilder.Entity<Employee>()
+            .HasIndex(e => e.Username)
+            .IsUnique();
+
+        modelBuilder.Entity<Employee>()
+            .HasIndex(e => e.FirstName);
+
+        modelBuilder.Entity<Employee>()
+            .HasIndex(e => e.LastName);
+
+        modelBuilder.Entity<Employee>()
+            .HasIndex(e => e.DepartmentId);
+
+        modelBuilder.Entity<Employee>()
+            .HasIndex(e => e.RoleId);
+
+        modelBuilder.Entity<Employee>()
+            .HasIndex(e => e.Status);
+
+        modelBuilder.Entity<Employee>()
+            .HasIndex(e => new { e.DepartmentId, e.RoleId });
+
+        modelBuilder.Entity<Employee>()
+            .HasIndex(e => new { e.DepartmentId, e.Status });
+
+        modelBuilder.Entity<Department>()
+            .HasIndex(d => d.DepartmentName);
+
+        modelBuilder.Entity<Role>()
+            .HasIndex(r => r.RoleName);
+
         modelBuilder.Entity<UserLogin>()
             .HasIndex(u => u.Username)
+            .IsUnique();
+
+        modelBuilder.Entity<UserLogin>()
+            .HasIndex(u => u.EmployeeId)
             .IsUnique();
 
         modelBuilder.Entity<Attendance>()
             .HasIndex(a => new { a.EmpId, a.AttendanceDate })
             .IsUnique();
+
+        modelBuilder.Entity<Attendance>()
+            .HasIndex(a => a.AttendanceDate);
+
+        modelBuilder.Entity<Attendance>()
+            .HasIndex(a => a.EmpId);
+
+        modelBuilder.Entity<Leave>()
+            .HasIndex(l => new { l.EmpId, l.Status, l.FromDate });
+
+        modelBuilder.Entity<Leave>()
+            .HasIndex(l => l.EmpId);
+
+        modelBuilder.Entity<Leave>()
+            .HasIndex(l => l.Status);
+
+        modelBuilder.Entity<Leave>()
+            .HasIndex(l => l.FromDate);
+
+        modelBuilder.Entity<Leave>()
+            .HasIndex(l => l.ToDate);
+
+        modelBuilder.Entity<Leave>()
+            .HasIndex(l => l.AppliedOn);
+
+        modelBuilder.Entity<Attendance>()
+            .HasIndex(a => new { a.EmpId, a.AttendanceDate, a.CheckIn, a.CheckOut });
+
+        modelBuilder.Entity<Client>()
+            .HasIndex(c => c.Status);
+
+        modelBuilder.Entity<Client>()
+            .HasIndex(c => c.ClientName);
+
+        modelBuilder.Entity<Client>()
+            .Property(c => c.ClientName)
+            .HasColumnType("varchar(100)");
+
+        modelBuilder.Entity<Client>()
+            .Property(c => c.ClientAddress)
+            .HasColumnType("varchar(max)");
+
+        modelBuilder.Entity<Client>()
+            .Property(c => c.ClientPhoneNumber)
+            .HasColumnType("varchar(15)");
+
+        modelBuilder.Entity<Client>()
+            .Property(c => c.ClientLocation)
+            .HasColumnType("varchar(100)");
+
+        modelBuilder.Entity<Client>()
+            .Property(c => c.Status)
+            .ValueGeneratedNever();
+
+        modelBuilder.Entity<Client>()
+            .Property(c => c.CreatedOn)
+            .HasDefaultValueSql("GETDATE()");
+
+        modelBuilder.Entity<Project>()
+            .HasIndex(p => p.ClientId);
+
+        modelBuilder.Entity<Project>()
+            .HasIndex(p => p.Status);
+
+        modelBuilder.Entity<Project>()
+            .HasIndex(p => p.StartDate);
+
+        modelBuilder.Entity<Project>()
+            .HasIndex(p => p.EndDate);
+
+        modelBuilder.Entity<Project>()
+            .Property(p => p.Status)
+            .HasDefaultValue("Planned");
+
+        modelBuilder.Entity<Project>()
+            .Property(p => p.StartDate)
+            .HasColumnType("date");
+
+        modelBuilder.Entity<Project>()
+            .Property(p => p.EndDate)
+            .HasColumnType("date");
+
+        modelBuilder.Entity<EmployeeProjectAllocation>()
+            .HasIndex(a => new { a.EmpId, a.ProjectId, a.Status })
+            .IsUnique();
+
+        modelBuilder.Entity<EmployeeProjectAllocation>()
+            .HasIndex(a => a.ProjectId);
+
+        modelBuilder.Entity<EmployeeProjectAllocation>()
+            .Property(a => a.AssignedOn)
+            .HasColumnType("date");
+
+        modelBuilder.Entity<EmployeeProjectAllocation>()
+            .Property(a => a.Status)
+            .HasDefaultValue(true);
+
+        modelBuilder.Entity<Announcement>()
+            .HasIndex(a => a.IsActive);
+
+        modelBuilder.Entity<Announcement>()
+            .HasIndex(a => a.CreatedOn);
+
+        modelBuilder.Entity<Announcement>()
+            .HasIndex(a => a.TargetRole);
+
+        modelBuilder.Entity<Announcement>()
+            .Property(a => a.Title)
+            .HasColumnType("varchar(150)");
+
+        modelBuilder.Entity<Announcement>()
+            .Property(a => a.Message)
+            .HasColumnType("varchar(max)");
+
+        modelBuilder.Entity<Announcement>()
+            .Property(a => a.TargetRole)
+            .HasColumnType("varchar(20)");
+
+        modelBuilder.Entity<Announcement>()
+            .Property(a => a.CreatedOn)
+            .HasDefaultValueSql("GETDATE()");
+
+        modelBuilder.Entity<Announcement>()
+            .Property(a => a.IsActive)
+            .ValueGeneratedNever();
+
+        modelBuilder.Entity<AuditLog>()
+            .HasIndex(a => a.CreatedOn);
+
+        modelBuilder.Entity<AuditLog>()
+            .HasIndex(a => a.UserId);
+
+        modelBuilder.Entity<AuditLog>()
+            .Property(a => a.Username)
+            .HasColumnType("varchar(100)");
+
+        modelBuilder.Entity<AuditLog>()
+            .Property(a => a.Action)
+            .HasColumnType("varchar(100)");
+
+        modelBuilder.Entity<AuditLog>()
+            .Property(a => a.EntityName)
+            .HasColumnType("varchar(100)");
+
+        modelBuilder.Entity<AuditLog>()
+            .Property(a => a.EntityId)
+            .HasColumnType("varchar(50)");
+
+        modelBuilder.Entity<AuditLog>()
+            .Property(a => a.Details)
+            .HasColumnType("varchar(max)");
+
+        modelBuilder.Entity<AuditLog>()
+            .Property(a => a.IpAddress)
+            .HasColumnType("varchar(50)");
+
+        modelBuilder.Entity<AuditLog>()
+            .Property(a => a.CreatedOn)
+            .HasDefaultValueSql("GETDATE()");
 
         modelBuilder.Entity<Employee>()
             .HasOne(e => e.Department)
@@ -47,6 +242,12 @@ public class WmsDbContext : DbContext
             .HasOne(e => e.Role)
             .WithMany(r => r.Employees)
             .HasForeignKey(e => e.RoleId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<UserLogin>()
+            .HasOne(u => u.Employee)
+            .WithOne(e => e.UserLogin)
+            .HasForeignKey<UserLogin>(u => u.EmployeeId)
             .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<Attendance>()
@@ -74,6 +275,10 @@ public class WmsDbContext : DbContext
             .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<EmployeeProjectAllocation>()
+            .Property(a => a.CreatedOn)
+            .HasDefaultValueSql("GETDATE()");
+
+        modelBuilder.Entity<EmployeeProjectAllocation>()
             .HasOne(a => a.Employee)
             .WithMany(e => e.ProjectAllocations)
             .HasForeignKey(a => a.EmpId)
@@ -97,8 +302,8 @@ public class WmsDbContext : DbContext
             new Role { RoleId = 3, RoleName = "Employee", Description = "Regular Employee" });
 
         modelBuilder.Entity<Department>().HasData(
-            new Department { DepartmentId = 1, DepartmentName = "Human Resources", Description = "HR operations and policies" },
-            new Department { DepartmentId = 2, DepartmentName = "Engineering", Description = "Software delivery and technical operations" },
-            new Department { DepartmentId = 3, DepartmentName = "Finance", Description = "Payroll, budgeting, and accounts" });
+            new Department { DepartmentId = 1, DepartmentName = "Human Resources", Description = "HR operations and policies", CreatedOn = seedCreatedOn },
+            new Department { DepartmentId = 2, DepartmentName = "Engineering", Description = "Software delivery and technical operations", CreatedOn = seedCreatedOn },
+            new Department { DepartmentId = 3, DepartmentName = "Finance", Description = "Payroll, budgeting, and accounts", CreatedOn = seedCreatedOn });
     }
 }

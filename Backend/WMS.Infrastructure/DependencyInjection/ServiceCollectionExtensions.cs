@@ -22,6 +22,15 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IEmployeeService, EmployeeService>();
         services.AddScoped<IDepartmentService, DepartmentService>();
         services.AddScoped<IRoleService, RoleService>();
+        services.AddScoped<IAttendanceService, AttendanceService>();
+        services.AddScoped<ILeaveService, LeaveService>();
+        services.AddScoped<IClientService, ClientService>();
+        services.AddScoped<IProjectService, ProjectService>();
+        services.AddScoped<IProjectAllocationService, ProjectAllocationService>();
+        services.AddScoped<IDashboardService, DashboardService>();
+        services.AddScoped<IReportService, ReportService>();
+        services.AddScoped<IAnnouncementService, AnnouncementService>();
+        services.AddScoped<IAuditLogService, AuditLogService>();
 
         return services;
     }

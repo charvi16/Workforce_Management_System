@@ -2,10 +2,18 @@
   <div class="toolbar-panel">
     <div>
       <p class="eyebrow">Employee Management</p>
-      <h2>Employees, departments, and role assignments</h2>
+      <h2>
+        @if (pageMode === 'add') {
+          Add employee
+        } @else if (pageMode === 'edit') {
+          Edit employee
+        } @else {
+          Employee list
+        }
+      </h2>
     </div>
     <div class="toolbar-stats">
-      <span>{{ employees.length }} employees</span>
+      <span>{{ totalEmployees }} employees</span>
       <span>{{ departments.length }} departments</span>
       <span>{{ roles.length }} roles</span>
     </div>
@@ -19,136 +27,73 @@
     <p class="notice error">{{ errorMessage }}</p>
   }
 
-  <form class="filter-panel" [formGroup]="filterForm" (ngSubmit)="loadEmployees()">
-    <label>
-      <span>Search employees</span>
-      <input type="search" formControlName="search" placeholder="Name, email, or phone" />
-    </label>
+  @if (pageMode === 'list') {
+    <form class="filter-panel" [formGroup]="filterForm" (ngSubmit)="loadEmployees()">
+      <label>
+        <span>Search employees</span>
+        <input type="search" formControlName="search" placeholder="Name, username, email, department, role, or ID" />
+      </label>
 
-    <label>
-      <span>Department</span>
-      <select formControlName="departmentId">
-        <option value="">All departments</option>
-        @for (department of departments; track department.departmentId) {
-          <option [value]="department.departmentId">{{ department.departmentName }}</option>
-        }
-      </select>
-    </label>
+      <label>
+        <span>Department</span>
+        <select formControlName="departmentId">
+          <option value="">All departments</option>
+          @for (department of departments; track department.departmentId) {
+            <option [value]="department.departmentId">{{ department.departmentName }}</option>
+          }
+        </select>
+      </label>
 
-    <label>
-      <span>Role</span>
-      <select formControlName="roleId">
-        <option value="">All roles</option>
-        @for (role of roles; track role.roleId) {
-          <option [value]="role.roleId">{{ role.roleName }}</option>
-        }
-      </select>
-    </label>
+      <label>
+        <span>Role</span>
+        <select formControlName="roleId">
+          <option value="">All roles</option>
+          @for (role of roles; track role.roleId) {
+            <option [value]="role.roleId">{{ role.roleName }}</option>
+          }
+        </select>
+      </label>
 
-    <div class="filter-actions">
-      <button type="submit">Search</button>
-      <button type="button" class="secondary" (click)="clearFilters()">Clear</button>
-    </div>
-  </form>
+      <label>
+        <span>Status</span>
+        <select formControlName="status">
+          <option value="">All statuses</option>
+          <option value="Active">Active</option>
+          <option value="Inactive">Inactive</option>
+        </select>
+      </label>
 
-  <section class="management-grid">
-    <article class="panel form-panel">
-      <div class="panel-heading">
-        <h3>{{ editingEmployeeId ? 'Edit employee' : 'Add employee' }}</h3>
-        @if (editingEmployeeId) {
-          <button type="button" class="secondary" (click)="cancelEmployeeEdit()">Cancel</button>
-        }
+      <div class="filter-actions">
+        <button type="submit">Search</button>
+        <button type="button" class="secondary" (click)="clearFilters()">Clear</button>
       </div>
-
-      <form [formGroup]="employeeForm" (ngSubmit)="saveEmployee()" class="employee-form">
-        <label>
-          <span>First name</span>
-          <input type="text" formControlName="firstName" />
-        </label>
-
-        <label>
-          <span>Last name</span>
-          <input type="text" formControlName="lastName" />
-        </label>
-
-        <label>
-          <span>Email</span>
-          <input type="email" formControlName="email" />
-        </label>
-
-        <label>
-          <span>Phone</span>
-          <input type="tel" formControlName="phoneNumber" />
-        </label>
-
-        <label>
-          <span>Gender</span>
-          <select formControlName="gender">
-            @for (gender of genders; track gender.id) {
-              <option [value]="gender.id">{{ gender.name }}</option>
-            }
-          </select>
-        </label>
-
-        <label>
-          <span>Status</span>
-          <select formControlName="status">
-            @for (status of statuses; track status.id) {
-              <option [value]="status.id">{{ status.name }}</option>
-            }
-          </select>
-        </label>
-
-        <label>
-          <span>Date of birth</span>
-          <input type="date" formControlName="dob" />
-        </label>
-
-        <label>
-          <span>Date of joining</span>
-          <input type="date" formControlName="doj" />
-        </label>
-
-        <label>
-          <span>Department</span>
-          <select formControlName="departmentId">
-            @for (department of departments; track department.departmentId) {
-              <option [value]="department.departmentId">{{ department.departmentName }}</option>
-            }
-          </select>
-        </label>
-
-        <label>
-          <span>Role</span>
-          <select formControlName="roleId">
-            @for (role of roles; track role.roleId) {
-              <option [value]="role.roleId">{{ role.roleName }}</option>
-            }
-          </select>
-        </label>
-
-        <button type="submit">{{ editingEmployeeId ? 'Update employee' : 'Add employee' }}</button>
-      </form>
-    </article>
+    </form>
 
     <article class="panel list-panel">
       <div class="panel-heading">
-        <h3>Employee list</h3>
-        @if (isLoading) {
-          <span>Loading...</span>
-        }
+        <h3>Employees</h3>
+        <div class="panel-actions">
+          @if (isLoading && employees.length === 0) {
+            <span>Loading...</span>
+          }
+          @if (canManageOrganization) {
+            <a routerLink="/employees/add" class="button-link">Add Employee</a>
+          }
+        </div>
       </div>
 
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>Name</th>
-              <th>Email</th>
+              <th>Employee</th>
+              <th>Contact</th>
               <th>Department</th>
               <th>Role</th>
               <th>Status</th>
-              <th>Actions</th>
+              @if (canManageOrganization) {
+                <th>Actions</th>
+              }
             </tr>
           </thead>
           <tbody>
@@ -156,84 +101,155 @@
               <tr>
                 <td>
                   <strong>{{ employee.fullName }}</strong>
+                  <span>ID {{ employee.employeeId }} · {{ employee.username }}</span>
+                </td>
+                <td>
+                  <strong>{{ employee.email }}</strong>
                   <span>{{ employee.phoneNumber }}</span>
                 </td>
-                <td>{{ employee.email }}</td>
-                <td>
-                  <select [value]="employee.departmentId" (change)="assignDepartment(employee, $any($event.target).value)">
-                    @for (department of departments; track department.departmentId) {
-                      <option [value]="department.departmentId">{{ department.departmentName }}</option>
-                    }
-                  </select>
-                </td>
-                <td>
-                  <select [value]="employee.roleId" (change)="assignRole(employee, $any($event.target).value)">
-                    @for (role of roles; track role.roleId) {
-                      <option [value]="role.roleId">{{ role.roleName }}</option>
-                    }
-                  </select>
-                </td>
+                <td>{{ employee.departmentName }}</td>
+                <td>{{ employee.roleName }}</td>
                 <td><span class="status">{{ employee.statusName }}</span></td>
-                <td>
-                  <div class="row-actions">
-                    <button type="button" class="secondary" (click)="editEmployee(employee)">Edit</button>
-                    <button type="button" class="danger" (click)="deleteEmployee(employee)">Delete</button>
-                  </div>
-                </td>
+                @if (canManageOrganization) {
+                  <td>
+                    <div class="row-actions">
+                      <button type="button" class="secondary" (click)="editEmployee(employee)">Edit</button>
+                      <button type="button" class="danger" (click)="deleteEmployee(employee)">Delete</button>
+                    </div>
+                  </td>
+                }
               </tr>
             } @empty {
               <tr>
-                <td colspan="6" class="empty">No employees found.</td>
+                <td [attr.colspan]="canManageOrganization ? 6 : 5" class="empty">No employees found.</td>
               </tr>
             }
           </tbody>
         </table>
       </div>
-    </article>
-  </section>
 
-  <section class="department-grid">
-    <article class="panel">
-      <div class="panel-heading">
-        <h3>{{ editingDepartmentId ? 'Edit department' : 'Add department' }}</h3>
-        @if (editingDepartmentId) {
-          <button type="button" class="secondary" (click)="cancelDepartmentEdit()">Cancel</button>
-        }
-      </div>
-
-      <form [formGroup]="departmentForm" (ngSubmit)="saveDepartment()" class="department-form">
-        <label>
-          <span>Department name</span>
-          <input type="text" formControlName="departmentName" />
-        </label>
-        <label>
-          <span>Description</span>
-          <input type="text" formControlName="description" />
-        </label>
-        <button type="submit">{{ editingDepartmentId ? 'Update department' : 'Add department' }}</button>
-      </form>
-    </article>
-
-    <article class="panel">
-      <div class="panel-heading">
-        <h3>Departments</h3>
-        <span>CRUD</span>
-      </div>
-      <div class="department-list">
-        @for (department of departments; track department.departmentId) {
-          <div class="department-row">
-            <div>
-              <strong>{{ department.departmentName }}</strong>
-              <span>{{ department.description || 'No description' }}</span>
-            </div>
-            <span>{{ department.employeeCount }} employees</span>
-            <div class="row-actions">
-              <button type="button" class="secondary" (click)="editDepartment(department)">Edit</button>
-              <button type="button" class="danger" (click)="deleteDepartment(department)">Delete</button>
-            </div>
-          </div>
-        }
+      <div class="pagination-row">
+        <button type="button" class="secondary" (click)="changeEmployeePage(-1)" [disabled]="employeePageNumber <= 1">Previous</button>
+        <span>Page {{ employeePageNumber }} of {{ employeeTotalPages || 1 }}</span>
+        <button type="button" class="secondary" (click)="changeEmployeePage(1)" [disabled]="employeeTotalPages > 0 && employeePageNumber >= employeeTotalPages">Next</button>
       </div>
     </article>
-  </section>
+  } @else {
+    @if (canManageOrganization) {
+      <article class="panel form-panel form-page">
+        <div class="panel-heading">
+          <h3>{{ pageMode === 'edit' ? 'Edit employee details' : 'Create employee account' }}</h3>
+          <a routerLink="/employees" class="secondary button-link">Back to Employees</a>
+        </div>
+
+        <form [formGroup]="employeeForm" (ngSubmit)="saveEmployee()" class="employee-form">
+          <label>
+            <span>Username</span>
+            <input type="text" formControlName="username" />
+            @if (isFieldInvalid('username')) {
+              <small>{{ fieldError('username') }}</small>
+            }
+          </label>
+
+          <label>
+            <span>Password</span>
+            <input type="password" formControlName="password" [placeholder]="editingEmployeeId ? 'Leave blank to keep current password' : ''" />
+            @if (isFieldInvalid('password')) {
+              <small>{{ fieldError('password') }}</small>
+            }
+          </label>
+
+          <label>
+            <span>First name</span>
+            <input type="text" formControlName="firstName" />
+            @if (isFieldInvalid('firstName')) {
+              <small>{{ fieldError('firstName') }}</small>
+            }
+          </label>
+
+          <label>
+            <span>Last name</span>
+            <input type="text" formControlName="lastName" />
+            @if (isFieldInvalid('lastName')) {
+              <small>{{ fieldError('lastName') }}</small>
+            }
+          </label>
+
+          <label>
+            <span>Email</span>
+            <input type="email" formControlName="email" />
+            @if (isFieldInvalid('email')) {
+              <small>{{ fieldError('email') }}</small>
+            }
+          </label>
+
+          <label>
+            <span>Phone</span>
+            <input type="tel" formControlName="phoneNumber" />
+            @if (isFieldInvalid('phoneNumber')) {
+              <small>{{ fieldError('phoneNumber') }}</small>
+            }
+          </label>
+
+          <label>
+            <span>Gender</span>
+            <select formControlName="gender">
+              @for (gender of genders; track gender.id) {
+                <option [value]="gender.id">{{ gender.name }}</option>
+              }
+            </select>
+          </label>
+
+          <label>
+            <span>Status</span>
+            <select formControlName="status">
+              @for (status of statuses; track status.id) {
+                <option [value]="status.id">{{ status.name }}</option>
+              }
+            </select>
+          </label>
+
+          <label>
+            <span>Date of birth</span>
+            <input type="date" formControlName="dob" />
+            @if (isFieldInvalid('dob')) {
+              <small>{{ fieldError('dob') }}</small>
+            }
+          </label>
+
+          <label>
+            <span>Date of joining</span>
+            <input type="date" formControlName="doj" />
+            @if (isFieldInvalid('doj')) {
+              <small>{{ fieldError('doj') }}</small>
+            }
+          </label>
+
+          <label>
+            <span>Department</span>
+            <select formControlName="departmentId">
+              @for (department of departments; track department.departmentId) {
+                <option [value]="department.departmentId">{{ department.departmentName }}</option>
+              }
+            </select>
+          </label>
+
+          <label>
+            <span>Role</span>
+            <select formControlName="roleId">
+              @for (role of roles; track role.roleId) {
+                <option [value]="role.roleId">{{ role.roleName }}</option>
+              }
+            </select>
+          </label>
+
+          <button type="submit" [disabled]="isSaving">{{ isSaving ? 'Saving...' : (pageMode === 'edit' ? 'Update employee' : 'Add employee') }}</button>
+        </form>
+      </article>
+    } @else {
+      <article class="panel">
+        <p class="empty">Only admins can add or edit employees.</p>
+      </article>
+    }
+  }
 </section>

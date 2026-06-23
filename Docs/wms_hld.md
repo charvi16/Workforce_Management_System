@@ -37,10 +37,14 @@ The system supports employee management, attendance tracking, leave management, 
 - Manage employees, departments, roles, clients, projects, announcements, and reports.
 - View organization-wide dashboards.
 - Manage user accounts and access.
+- Mark own attendance and apply for leave.
+- Approve employee and manager leave requests.
 
 ### Manager
-- View team attendance.
-- Approve or reject leave requests.
+- Mark own attendance.
+- View own and team attendance.
+- Apply for leave.
+- Approve or reject employee leave requests.
 - Assign employees to projects.
 - View team dashboards and project allocations.
 
@@ -49,6 +53,38 @@ The system supports employee management, attendance tracking, leave management, 
 - Mark attendance check-in/check-out.
 - Apply or cancel leave.
 - View announcements, attendance history, and leave status.
+
+### Permission Matrix
+
+| Feature | Employee | Manager | Admin |
+|---|---|---|---|
+| Login | Yes | Yes | Yes |
+| View dashboard | Yes | Yes | Yes |
+| View own profile | Yes | Yes | Yes |
+| Update own basic profile | Limited | Limited | Limited |
+| Search employee directory | Yes | Yes | Yes |
+| Add employee | No | No | Yes |
+| Edit employee details | No | Limited/No | Yes |
+| Delete/deactivate employee | No | No | Yes |
+| Add department | No | No | Yes |
+| Edit department | No | No | Yes |
+| Delete department | No | No | Yes |
+| Add role | No | No | Yes |
+| Assign role | No | No | Yes |
+| Add project | No | Maybe/No | Yes |
+| Assign employees to project | No | Yes/Limited | Yes |
+| Apply leave | Yes | Yes | Yes |
+| Approve employee leave | No | Yes | Yes |
+| Approve manager leave | No | No | Yes |
+| Mark own attendance | Yes | Yes | Yes |
+| View own attendance | Yes | Yes | Yes |
+| View team attendance | No | Yes | Yes |
+| View all attendance | No | No | Yes |
+| Create announcement | No | Maybe/No | Yes |
+| View announcements | Yes | Yes | Yes |
+| Generate own reports | Yes | Yes | Yes |
+| Generate team reports | No | Yes | Yes |
+| Generate company reports | No | No | Yes |
 
 ## 5. Architecture Overview
 
@@ -151,17 +187,21 @@ SQL Server Database
 - Department is mapped with employees.
 
 ### 7.4 Attendance Management
-- Employee check-in and check-out.
+- Employee, Manager, and Admin check-in/check-out for themselves.
 - Calculate total working hours.
 - Support WFO, WFH, and Hybrid work modes.
 - Prevent duplicate check-in for the same date.
+- Employees view their own attendance.
+- Managers view their own and team attendance.
+- Admins view all attendance.
 - Generate monthly attendance and timesheet reports.
 
 ### 7.5 Leave Management
-- Employee can apply for leave.
-- Employee can cancel pending leave.
-- Manager can approve or reject leave.
-- Admin can view all leaves.
+- Employee, Manager, and Admin can apply for leave.
+- Employee leave is reviewed by a Manager or Admin.
+- Manager leave is reviewed by an Admin.
+- Admin leave is auto-approved.
+- Users can view their own leave status and cancel their own pending/approved leave.
 - Validates date range, overlapping leave, and approval permissions.
 
 ### 7.6 Project and Client Management
@@ -351,7 +391,7 @@ Rules:
 - One employee can be assigned to multiple projects.
 - One project belongs to one client.
 - Attendance is recorded once per employee per day.
-- Only managers/admins can approve leave.
+- Employee leave is approved by Manager/Admin, Manager leave by Admin, and Admin leave is auto-approved.
 - Admin has full system access.
 - Employee records are soft-deactivated using Status rather than deleted.
 

@@ -14,6 +14,9 @@ public class Employee
     [Required, MaxLength(50)]
     public string LastName { get; set; } = string.Empty;
 
+    [Required, MaxLength(50)]
+    public string Username { get; set; } = string.Empty;
+
     [Required, EmailAddress, MaxLength(80)]
     public string Email { get; set; } = string.Empty;
 
@@ -48,4 +51,6 @@ public class Employee
     public ICollection<Leave> Leaves { get; set; } = new List<Leave>();
 
     public ICollection<EmployeeProjectAllocation> ProjectAllocations { get; set; } = new List<EmployeeProjectAllocation>();
+
+    public UserLogin? UserLogin { get; set; }
 }

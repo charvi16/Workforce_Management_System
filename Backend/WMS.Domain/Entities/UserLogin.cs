@@ -13,9 +13,13 @@ public class UserLogin
     [Required]
     public string PasswordHash { get; set; } = string.Empty;
 
+    public int EmployeeId { get; set; }
+
     public int RoleId { get; set; }
 
     public DateTime? LastLogin { get; set; }
+
+    public Employee Employee { get; set; } = null!;
 
     public Role Role { get; set; } = null!;
 }

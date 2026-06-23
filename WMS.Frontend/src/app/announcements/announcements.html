@@ -1,0 +1,121 @@
+<section class="page-shell">
+  <header class="page-header">
+    <div>
+      <p class="eyebrow">Announcements</p>
+      <h1>{{ mode === 'list' ? 'Announcement Board' : mode === 'detail' ? 'Announcement Details' : 'Announcement Form' }}</h1>
+    </div>
+    <div class="header-actions">
+      <a routerLink="/dashboard" class="link-button">Dashboard</a>
+      @if (mode !== 'list') {
+        <a routerLink="/announcements" class="link-button">Back to Announcements</a>
+      }
+      @if (canManage) {
+        <a routerLink="/announcements/add" class="primary-link">Add</a>
+      }
+    </div>
+  </header>
+
+  @if (mode === 'list') {
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Title</th>
+            <th>Audience</th>
+            <th>Created</th>
+            <th>Expires</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (announcement of announcements; track announcement.announcementId) {
+            <tr>
+              <td>{{ announcement.title }}</td>
+              <td>{{ announcement.targetRole || 'All' }}</td>
+              <td>{{ formatDate(announcement.createdOn) }}</td>
+              <td>{{ formatDate(announcement.expiryDate) }}</td>
+              <td><span class="status" [class.status-inactive]="!announcement.isActive">{{ announcement.isActive ? 'Active' : 'Inactive' }}</span></td>
+              <td class="actions">
+                <a [routerLink]="['/announcements', announcement.announcementId]">View</a>
+                @if (canManage) {
+                  <a [routerLink]="['/announcements/edit', announcement.announcementId]">Edit</a>
+                  <button type="button" (click)="deactivate(announcement)">Deactivate</button>
+                }
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="6">No announcements found.</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <div class="pagination">
+      <button type="button" (click)="changePage(-1)" [disabled]="pageNumber <= 1">Previous</button>
+      <span>Page {{ pageNumber }} of {{ totalPages || 1 }} | {{ totalCount }} records</span>
+      <button type="button" (click)="changePage(1)" [disabled]="totalPages > 0 && pageNumber >= totalPages">Next</button>
+    </div>
+  } @else if (mode === 'detail') {
+    @if (currentAnnouncement) {
+      <article class="detail-card">
+        <h2>{{ currentAnnouncement.title }}</h2>
+        <p>{{ currentAnnouncement.message }}</p>
+        <dl>
+          <div><dt>Audience</dt><dd>{{ currentAnnouncement.targetRole || 'All' }}</dd></div>
+          <div><dt>Created</dt><dd>{{ formatDate(currentAnnouncement.createdOn) }}</dd></div>
+          <div><dt>Expires</dt><dd>{{ formatDate(currentAnnouncement.expiryDate) }}</dd></div>
+          <div><dt>Status</dt><dd><span class="status" [class.status-inactive]="!currentAnnouncement.isActive">{{ currentAnnouncement.isActive ? 'Active' : 'Inactive' }}</span></dd></div>
+        </dl>
+      </article>
+    }
+  } @else {
+    <form class="form-grid" [formGroup]="form" (ngSubmit)="saveAnnouncement()">
+      <label>
+        <span>Title</span>
+        <input type="text" formControlName="title" />
+        @if (form.controls.title.touched && form.controls.title.invalid) {
+          <small>Title is required.</small>
+        }
+      </label>
+      <label>
+        <span>Audience</span>
+        <select formControlName="targetRole">
+          @for (role of targetRoles; track role) {
+            <option [value]="role">{{ role || 'All Roles' }}</option>
+          }
+        </select>
+      </label>
+      <label>
+        <span>Expiry Date</span>
+        <input type="date" formControlName="expiryDate" />
+      </label>
+      <label>
+        <span>Status</span>
+        <select formControlName="isActive">
+          <option [ngValue]="true">Active</option>
+          <option [ngValue]="false">Inactive</option>
+        </select>
+      </label>
+      <label class="full">
+        <span>Message</span>
+        <textarea rows="6" formControlName="message"></textarea>
+        @if (form.controls.message.touched && form.controls.message.invalid) {
+          <small>Message is required.</small>
+        }
+      </label>
+      <div class="form-actions">
+        <button type="submit" [disabled]="isSaving || !canManage">{{ mode === 'edit' ? 'Update' : 'Create' }}</button>
+      </div>
+    </form>
+  }
+
+  @if (message) {
+    <p class="success">{{ message }}</p>
+  }
+  @if (errorMessage) {
+    <p class="error">{{ errorMessage }}</p>
+  }
+</section>

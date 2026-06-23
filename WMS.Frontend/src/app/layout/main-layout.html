@@ -1,0 +1,26 @@
+<main class="app-shell">
+  <aside class="sidebar" aria-label="Application navigation">
+    <a routerLink="/dashboard" class="brand">
+      <span class="brand-mark">WMS</span>
+      <span>Workforce</span>
+    </a>
+
+    <nav>
+      @for (item of navItems; track item.route) {
+        <a
+          [routerLink]="item.route"
+          routerLinkActive="active"
+          [routerLinkActiveOptions]="{ exact: item.route === '/dashboard' }"
+        >
+          {{ item.label }}
+        </a>
+      }
+    </nav>
+
+    <button type="button" class="logout-button" (click)="logout()">Logout</button>
+  </aside>
+
+  <section class="layout-content">
+    <router-outlet />
+  </section>
+</main>

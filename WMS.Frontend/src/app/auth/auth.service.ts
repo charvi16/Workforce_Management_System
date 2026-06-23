@@ -12,6 +12,7 @@ interface ApiResponse<T> {
 
 interface AuthResponse {
   userId: number;
+  employeeId: number;
   username: string;
   role: string;
   token: string;
@@ -20,15 +21,10 @@ interface AuthResponse {
 
 export interface CurrentUser {
   userId: number;
+  employeeId: number;
   username: string;
   role: string;
   expiresAtUtc: string;
-}
-
-interface RegisterResponse {
-  userId: number;
-  username: string;
-  role: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -46,6 +42,7 @@ export class AuthService {
             localStorage.setItem(this.tokenKey, response.data.token);
             localStorage.setItem(this.userKey, JSON.stringify({
               userId: response.data.userId,
+              employeeId: response.data.employeeId,
               username: response.data.username,
               role: response.data.role,
               expiresAtUtc: response.data.expiresAtUtc
@@ -55,16 +52,18 @@ export class AuthService {
       );
   }
 
-  register(username: string, password: string, roleId: number): Observable<ApiResponse<RegisterResponse>> {
-    return this.http.post<ApiResponse<RegisterResponse>>(`${environment.apiBaseUrl}/Auth/register`, {
-      username,
-      password,
-      roleId
-    });
+  getToken(): string | null {
+    const user = this.getCurrentUser();
+    if (!user || this.isExpired(user.expiresAtUtc)) {
+      this.logout();
+      return null;
+    }
+
+    return localStorage.getItem(this.tokenKey);
   }
 
-  getToken(): string | null {
-    return localStorage.getItem(this.tokenKey);
+  isAuthenticated(): boolean {
+    return !!this.getToken();
   }
 
   getCurrentUser(): CurrentUser | null {
@@ -84,5 +83,13 @@ export class AuthService {
   logout(): void {
     localStorage.removeItem(this.tokenKey);
     localStorage.removeItem(this.userKey);
+  }
+
+  private isExpired(expiresAtUtc: string): boolean {
+    const normalized = /(?:z|[+-]\d{2}:?\d{2})$/i.test(expiresAtUtc)
+      ? expiresAtUtc
+      : `${expiresAtUtc}Z`;
+    const expiresAt = Date.parse(normalized);
+    return !Number.isFinite(expiresAt) || expiresAt <= Date.now();
   }
 }
