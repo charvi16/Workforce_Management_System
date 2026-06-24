@@ -7,7 +7,7 @@ import { filter, firstValueFrom } from 'rxjs';
 import { ClientsService, Client } from '../clients/clients.service';
 import { EmployeeManagementService, Employee } from '../employees/employee-management.service';
 import { AuthService } from '../auth/auth.service';
-import { normalizePagedResponse } from '../shared/pagination';
+import { normalizePagedResponse, toCamelCaseObject } from '../shared/pagination';
 import {
   Project,
   ProjectAllocation,
@@ -171,9 +171,8 @@ export class Projects implements OnInit {
     try {
       const response = await firstValueFrom(request$);
       const project = response.data;
-      await this.createSelectedMemberAllocations(project.projectId);
       this.message = this.selectedProjectMemberCount > 0
-        ? `${response.message} ${this.selectedProjectMemberCount} member(s) assigned.`
+        ? `${response.message} ${this.selectedProjectMemberCount} member(s) selected.`
         : response.message;
       this.errorMessage = '';
       this.selectedProjectMemberIds.clear();
@@ -362,10 +361,47 @@ export class Projects implements OnInit {
       error: () => this.clients = []
     });
 
-    this.employeeService.getEmployees('', '', '', '', 1, 100).subscribe({
-      next: (response) => this.employees = this.normalizePage<Employee>(response, 1, 100)?.items ?? [],
-      error: () => this.employees = []
+    this.loadProjectMembers();
+  }
+
+  private loadProjectMembers(): void {
+    this.employeeService.getProjectAssignableEmployees().subscribe({
+      next: (response) => this.setEmployeesOrFallback(this.normalizeArray<Partial<Employee>>(response), () => this.loadAttendanceEmployeesFallback()),
+      error: () => this.loadAttendanceEmployeesFallback()
     });
+  }
+
+  private loadAttendanceEmployeesFallback(): void {
+    this.employeeService.getAttendanceEmployees().subscribe({
+      next: (response) => this.setEmployeesOrFallback(this.normalizeArray<Partial<Employee>>(response), () => this.loadLeaveEmployeesFallback()),
+      error: () => this.loadLeaveEmployeesFallback()
+    });
+  }
+
+  private loadLeaveEmployeesFallback(): void {
+    this.employeeService.getLeaveEmployees().subscribe({
+      next: (response) => this.setEmployeesOrFallback(this.normalizeArray<Partial<Employee>>(response), () => this.loadEmployeesFallback()),
+      error: () => this.loadEmployeesFallback()
+    });
+  }
+
+  private loadEmployeesFallback(): void {
+    this.employeeService.getEmployees('', '', '', '', 1, 100).subscribe({
+      next: (response) => {
+        this.setEmployeesOrFallback(this.normalizePage<Employee>(response, 1, 100)?.items ?? []);
+      },
+      error: (error) => {
+        this.employees = [];
+        this.errorMessage = this.getApiError(error, 'Unable to load employees for project assignment.');
+      }
+    });
+  }
+
+  private setEmployeesOrFallback(employees: Partial<Employee>[], fallback?: () => void): void {
+    this.employees = this.toEmployees(employees);
+    if (this.employees.length === 0 && fallback) {
+      fallback();
+    }
   }
 
   protected employeeDisplayName(employee: Employee): string {
@@ -412,28 +448,46 @@ export class Projects implements OnInit {
     return normalizePagedResponse<T>(response, fallbackPageNumber, fallbackPageSize);
   }
 
-  private isRole(role: string): boolean {
-    return this.currentUser?.role?.trim().toLowerCase() === role.toLowerCase();
+  private normalizeArray<T>(response: unknown): T[] {
+    const normalized = toCamelCaseObject(response) as { data?: unknown } | unknown;
+    const payload = (normalized as { data?: unknown })?.data ?? normalized;
+    if (Array.isArray(payload)) {
+      return payload as T[];
+    }
+
+    if (payload && typeof payload === 'object' && Array.isArray((payload as { $values?: unknown[] }).$values)) {
+      return (payload as { $values: T[] }).$values;
+    }
+
+    return [];
   }
 
-  private async createSelectedMemberAllocations(projectId: number): Promise<void> {
-    if (this.selectedProjectMemberIds.size === 0) {
-      return;
-    }
+  private toEmployees(employees: Partial<Employee>[]): Employee[] {
+    return employees
+      .filter((employee) => Number(employee.employeeId) > 0)
+      .map((employee) => ({
+        employeeId: Number(employee.employeeId),
+        username: employee.username ?? '',
+        firstName: employee.firstName ?? '',
+        lastName: employee.lastName ?? '',
+        fullName: employee.fullName ?? `${employee.firstName ?? ''} ${employee.lastName ?? ''}`.trim(),
+        email: employee.email ?? '',
+        phoneNumber: employee.phoneNumber ?? '',
+        gender: Number(employee.gender ?? 0),
+        genderName: employee.genderName ?? '',
+        dob: employee.dob ?? '',
+        doj: employee.doj ?? '',
+        departmentId: Number(employee.departmentId ?? 0),
+        departmentName: employee.departmentName ?? '',
+        roleId: Number(employee.roleId ?? 0),
+        roleName: employee.roleName ?? '',
+        status: Number(employee.status ?? 1),
+        statusName: employee.statusName ?? 'Active'
+      }));
+  }
 
-    const existingActiveMemberIds = new Set(this.allocations.filter((allocation) => allocation.status).map((allocation) => allocation.empId));
-    const memberIds = [...this.selectedProjectMemberIds].filter((employeeId) => !existingActiveMemberIds.has(employeeId));
-    if (memberIds.length === 0) {
-      return;
-    }
-
-    const assignedOn = this.defaultAssignedOnDateForForm();
-    await Promise.all(memberIds.map((employeeId) => firstValueFrom(this.projectsService.createAllocation({
-      empId: employeeId,
-      projectId,
-      assignedOn,
-      status: true
-    }))));
+  private isRole(role: string): boolean {
+    return this.currentUser?.role?.trim().toLowerCase() === role.toLowerCase();
   }
 
   private resetForms(): void {
@@ -525,7 +579,8 @@ export class Projects implements OnInit {
       clientId: value.clientId ?? null,
       startDate: value.startDate || null,
       endDate: value.endDate || null,
-      status: value.status ?? 'Planned'
+      status: value.status ?? 'Planned',
+      memberIds: [...this.selectedProjectMemberIds]
     };
   }
 }

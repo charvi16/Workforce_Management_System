@@ -33,7 +33,6 @@
             <th>Location</th>
             <th>Phone Number</th>
             <th>Status</th>
-            <th>Project Count</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -44,7 +43,6 @@
               <td>{{ client.clientLocation || '--' }}</td>
               <td>{{ client.clientPhoneNumber || '--' }}</td>
               <td><span class="status" [class.status-inactive]="!client.status">{{ client.status ? 'Active' : 'Inactive' }}</span></td>
-              <td>{{ client.projectCount }}</td>
               <td class="actions">
                 <a [routerLink]="['/clients', client.clientId]">View</a>
                 @if (canManage) {
@@ -72,7 +70,6 @@
           <div><dt>Phone</dt><dd>{{ currentClient.clientPhoneNumber || '--' }}</dd></div>
           <div><dt>Location</dt><dd>{{ currentClient.clientLocation || '--' }}</dd></div>
           <div><dt>Status</dt><dd><span class="status" [class.status-inactive]="!currentClient.status">{{ currentClient.status ? 'Active' : 'Inactive' }}</span></dd></div>
-          <div><dt>Projects</dt><dd>{{ currentClient.projectCount }}</dd></div>
         </dl>
       </article>
     }
@@ -106,11 +103,6 @@
           <option [ngValue]="true">Active</option>
           <option [ngValue]="false">Inactive</option>
         </select>
-      </label>
-      <label>
-        <span>Project Count</span>
-        <input type="number" [value]="currentClient?.projectCount ?? 0" disabled />
-        <small>Calculated from projects linked to this client.</small>
       </label>
       <div class="form-actions">
         <a routerLink="/clients" class="link-button">Back to Clients</a>

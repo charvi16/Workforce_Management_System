@@ -15,4 +15,6 @@ public class ProjectRequestDto
 
     [Required, MaxLength(20)]
     public string Status { get; set; } = "Planned";
+
+    public IReadOnlyCollection<int> MemberIds { get; set; } = Array.Empty<int>();
 }

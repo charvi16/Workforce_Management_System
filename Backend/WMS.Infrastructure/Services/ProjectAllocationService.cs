@@ -1,6 +1,7 @@
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using WMS.Application.Common;
+using WMS.Application.DTOs.Employees;
 using WMS.Application.DTOs.ProjectAllocations;
 using WMS.Application.Interfaces;
 using WMS.Domain.Entities;
@@ -59,6 +60,58 @@ public class ProjectAllocationService : IProjectAllocationService
             PageSize = pageSize,
             TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize)
         };
+    }
+
+    public async Task<IReadOnlyList<EmployeeDto>> GetAssignableEmployeesAsync(string currentUserRole, int currentEmployeeId, CancellationToken cancellationToken = default)
+    {
+        if (!IsAdminRole(currentUserRole) && !IsManagerRole(currentUserRole))
+        {
+            throw new InvalidOperationException("You do not have permission to assign employees to projects.");
+        }
+
+        var query = _dbContext.Employees
+            .AsNoTracking()
+            .Include(e => e.Department)
+            .Include(e => e.Role)
+            .Where(e => e.Status == EmployeeStatus.Active)
+            .AsQueryable();
+
+        if (IsManagerRole(currentUserRole))
+        {
+            var currentEmployee = await GetCurrentEmployeeAsync(currentEmployeeId, cancellationToken);
+            if (currentEmployee is null)
+            {
+                throw new InvalidOperationException("Current employee not found.");
+            }
+
+            query = query.Where(e =>
+                e.DepartmentId == currentEmployee.DepartmentId &&
+                e.Role.RoleName == nameof(UserRole.Employee));
+        }
+
+        return await query
+            .OrderBy(e => e.FirstName)
+            .ThenBy(e => e.LastName)
+            .Select(e => new EmployeeDto
+            {
+                EmployeeId = e.EmployeeId,
+                Username = e.Username,
+                FirstName = e.FirstName,
+                LastName = e.LastName,
+                Email = e.Email,
+                PhoneNumber = e.PhoneNumber,
+                Gender = (int)e.Gender,
+                GenderName = e.Gender.ToString(),
+                DOB = e.DOB,
+                DOJ = e.DOJ,
+                DepartmentId = e.DepartmentId,
+                DepartmentName = e.Department.DepartmentName,
+                RoleId = e.RoleId,
+                RoleName = e.Role.RoleName,
+                Status = (int)e.Status,
+                StatusName = e.Status.ToString()
+            })
+            .ToListAsync(cancellationToken);
     }
 
     public Task<PagedResult<ProjectAllocationDto>> GetByProjectAsync(int projectId, string currentUserRole, int currentEmployeeId, int pageNumber = 1, int pageSize = 10, CancellationToken cancellationToken = default)

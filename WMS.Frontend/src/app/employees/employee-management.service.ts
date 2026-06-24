@@ -101,6 +101,24 @@ export class EmployeeManagementService {
     });
   }
 
+  getProjectAssignableEmployees(): Observable<ApiResponse<Employee[]>> {
+    return this.http.get<ApiResponse<Employee[]>>(`${environment.apiBaseUrl}/ProjectAllocations/employees`, {
+      headers: this.getAuthHeaders()
+    });
+  }
+
+  getAttendanceEmployees(): Observable<ApiResponse<Partial<Employee>[]>> {
+    return this.http.get<ApiResponse<Partial<Employee>[]>>(`${environment.apiBaseUrl}/Attendance/employees`, {
+      headers: this.getAuthHeaders()
+    });
+  }
+
+  getLeaveEmployees(): Observable<ApiResponse<Partial<Employee>[]>> {
+    return this.http.get<ApiResponse<Partial<Employee>[]>>(`${environment.apiBaseUrl}/Leaves/employees`, {
+      headers: this.getAuthHeaders()
+    });
+  }
+
   getEmployee(employeeId: number): Observable<ApiResponse<Employee>> {
     return this.http.get<ApiResponse<Employee>>(`${environment.apiBaseUrl}/Employees/${employeeId}`, {
       headers: this.getAuthHeaders()

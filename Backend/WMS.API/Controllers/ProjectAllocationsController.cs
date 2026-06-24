@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using WMS.Application.Common;
+using WMS.Application.DTOs.Employees;
 using WMS.Application.DTOs.ProjectAllocations;
 using WMS.Application.Interfaces;
 
@@ -24,6 +26,21 @@ public class ProjectAllocationsController : ControllerBase
     {
         var allocations = await _allocationService.GetAllAsync(CurrentRole, CurrentEmployeeId, pageNumber, pageSize, cancellationToken);
         return Ok(ApiResponse<PagedResult<ProjectAllocationDto>>.Ok(allocations, "Project allocations retrieved successfully."));
+    }
+
+    [HttpGet("employees")]
+    [Authorize(Roles = "Admin,Manager")]
+    public async Task<IActionResult> Employees(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var employees = await _allocationService.GetAssignableEmployeesAsync(CurrentRole, CurrentEmployeeId, cancellationToken);
+            return Ok(ApiResponse<IReadOnlyList<EmployeeDto>>.Ok(employees, "Assignable project employees retrieved successfully."));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<IReadOnlyList<EmployeeDto>>.Fail("Assignable project employees lookup failed.", ex.Message));
+        }
     }
 
     [HttpGet("project/{projectId:int}")]
@@ -53,6 +70,10 @@ public class ProjectAllocationsController : ControllerBase
         {
             return BadRequest(ApiResponse<ProjectAllocationDto>.Fail("Project allocation creation failed.", ex.Message));
         }
+        catch (DbUpdateException ex)
+        {
+            return BadRequest(ApiResponse<ProjectAllocationDto>.Fail("Project allocation creation failed.", ex.InnerException?.Message ?? ex.Message));
+        }
     }
 
     [HttpPut("{allocationId:int}")]
@@ -67,6 +88,10 @@ public class ProjectAllocationsController : ControllerBase
         catch (InvalidOperationException ex)
         {
             return BadRequest(ApiResponse<ProjectAllocationDto>.Fail("Project allocation update failed.", ex.Message));
+        }
+        catch (DbUpdateException ex)
+        {
+            return BadRequest(ApiResponse<ProjectAllocationDto>.Fail("Project allocation update failed.", ex.InnerException?.Message ?? ex.Message));
         }
     }
 

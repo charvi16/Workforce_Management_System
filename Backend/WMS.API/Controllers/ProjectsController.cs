@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using WMS.Application.Common;
 using WMS.Application.DTOs.Projects;
@@ -62,6 +63,10 @@ public class ProjectsController : ControllerBase
         {
             return BadRequest(ApiResponse<ProjectDto>.Fail("Project creation failed.", ex.Message));
         }
+        catch (DbUpdateException ex)
+        {
+            return BadRequest(ApiResponse<ProjectDto>.Fail("Project creation failed.", ex.InnerException?.Message ?? ex.Message));
+        }
     }
 
     [HttpPut("{projectId:int}")]
@@ -76,6 +81,10 @@ public class ProjectsController : ControllerBase
         catch (InvalidOperationException ex)
         {
             return BadRequest(ApiResponse<ProjectDto>.Fail("Project update failed.", ex.Message));
+        }
+        catch (DbUpdateException ex)
+        {
+            return BadRequest(ApiResponse<ProjectDto>.Fail("Project update failed.", ex.InnerException?.Message ?? ex.Message));
         }
     }
 

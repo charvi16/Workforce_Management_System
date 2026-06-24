@@ -120,6 +120,7 @@ public class ProjectService : IProjectService
     {
         await ValidateClientAsync(request.ClientId, cancellationToken);
 
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
         var project = new Project
         {
             ProjectName = request.ProjectName.Trim(),
@@ -131,6 +132,9 @@ public class ProjectService : IProjectService
 
         _dbContext.Projects.Add(project);
         await _dbContext.SaveChangesAsync(cancellationToken);
+        await SyncProjectMembersAsync(project, request.MemberIds, currentEmployeeId, cancellationToken);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         return await GetByIdAsync(project.ProjectId, nameof(UserRole.Admin), currentEmployeeId, cancellationToken);
     }
@@ -148,6 +152,7 @@ public class ProjectService : IProjectService
         project.EndDate = request.EndDate;
         project.Status = ResolveStatusForStorage(request.Status, request.StartDate, request.EndDate);
 
+        await SyncProjectMembersAsync(project, request.MemberIds, currentEmployeeId, cancellationToken);
         await _dbContext.SaveChangesAsync(cancellationToken);
         return await GetByIdAsync(projectId, nameof(UserRole.Admin), currentEmployeeId, cancellationToken);
     }
@@ -201,6 +206,77 @@ public class ProjectService : IProjectService
         {
             throw new InvalidOperationException("Client not found.");
         }
+    }
+
+    private async Task SyncProjectMembersAsync(Project project, IReadOnlyCollection<int> memberIds, int currentEmployeeId, CancellationToken cancellationToken)
+    {
+        var selectedMemberIds = memberIds
+            .Where(id => id > 0)
+            .Distinct()
+            .ToHashSet();
+
+        var allocations = await _dbContext.EmployeeProjectAllocations
+            .Where(a => a.ProjectId == project.ProjectId)
+            .ToListAsync(cancellationToken);
+
+        foreach (var activeAllocation in allocations.Where(a => a.Status && !selectedMemberIds.Contains(a.EmpId)))
+        {
+            activeAllocation.Status = false;
+            activeAllocation.UpdatedOn = DateTime.UtcNow;
+            activeAllocation.UpdatedBy = currentEmployeeId;
+        }
+
+        if (selectedMemberIds.Count == 0)
+        {
+            return;
+        }
+
+        var activeEmployeeIds = await _dbContext.Employees
+            .Where(e => selectedMemberIds.Contains(e.EmployeeId) && e.Status == EmployeeStatus.Active)
+            .Select(e => e.EmployeeId)
+            .ToListAsync(cancellationToken);
+
+        var missingEmployeeIds = selectedMemberIds.Except(activeEmployeeIds).ToList();
+        if (missingEmployeeIds.Count > 0)
+        {
+            throw new InvalidOperationException("One or more selected project members are not active employees.");
+        }
+
+        var assignedOn = DefaultAssignedOnDate(project);
+        foreach (var memberId in selectedMemberIds)
+        {
+            var existingActive = allocations.FirstOrDefault(a => a.EmpId == memberId && a.Status);
+            if (existingActive is not null)
+            {
+                continue;
+            }
+
+            _dbContext.EmployeeProjectAllocations.Add(new EmployeeProjectAllocation
+            {
+                EmpId = memberId,
+                ProjectId = project.ProjectId,
+                AssignedOn = assignedOn,
+                Status = true,
+                CreatedOn = DateTime.UtcNow,
+                CreatedBy = currentEmployeeId
+            });
+        }
+    }
+
+    private static DateTime DefaultAssignedOnDate(Project project)
+    {
+        var today = DateTime.UtcNow.Date;
+        if (project.StartDate.HasValue && today < project.StartDate.Value.Date)
+        {
+            return project.StartDate.Value.Date;
+        }
+
+        if (project.EndDate.HasValue && today > project.EndDate.Value.Date)
+        {
+            return project.EndDate.Value.Date;
+        }
+
+        return today;
     }
 
     private IQueryable<int> GetAccessibleProjectIdsQuery(string currentUserRole, Employee? currentEmployee)

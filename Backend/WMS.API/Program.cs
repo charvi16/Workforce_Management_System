@@ -189,6 +189,24 @@ BEGIN
         ALTER TABLE dbo.Projects ALTER COLUMN Status varchar(20) NOT NULL;
     END
 
+    IF OBJECT_ID('dbo.EmployeeProjectAllocations', 'U') IS NOT NULL
+       AND COL_LENGTH('dbo.EmployeeProjectAllocations', 'Status') IS NOT NULL
+    BEGIN
+        UPDATE dbo.EmployeeProjectAllocations SET Status = 0 WHERE Status IS NULL;
+
+        IF NOT EXISTS (
+            SELECT 1
+            FROM sys.default_constraints dc
+            INNER JOIN sys.columns c ON c.default_object_id = dc.object_id
+            WHERE dc.parent_object_id = OBJECT_ID('dbo.EmployeeProjectAllocations')
+              AND c.name = 'Status'
+        )
+        BEGIN
+            ALTER TABLE dbo.EmployeeProjectAllocations
+            ADD CONSTRAINT DF_EmployeeProjectAllocations_Status DEFAULT (1) FOR Status;
+        END
+    END
+
     IF OBJECT_ID('dbo.Announcements', 'U') IS NOT NULL
     BEGIN
         IF COL_LENGTH('dbo.Announcements', 'UpdatedOn') IS NULL

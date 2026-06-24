@@ -36,6 +36,7 @@ export interface ProjectRequest {
   startDate?: string | null;
   endDate?: string | null;
   status: string;
+  memberIds: number[];
 }
 
 export interface ProjectAllocation {
