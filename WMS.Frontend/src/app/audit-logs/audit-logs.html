@@ -43,9 +43,9 @@
   </div>
 
   <div class="pagination">
-    <button type="button" (click)="changePage(-1)" [disabled]="pageNumber <= 1">Previous</button>
+    <button type="button" (click)="changePage(-1)" [disabled]="!hasPreviousPage">Previous</button>
     <span>Page {{ pageNumber }} of {{ totalPages || 1 }} | {{ totalCount }} records</span>
-    <button type="button" (click)="changePage(1)" [disabled]="totalPages > 0 && pageNumber >= totalPages">Next</button>
+    <button type="button" (click)="changePage(1)" [disabled]="!hasNextPage">Next</button>
   </div>
 
   @if (errorMessage) {

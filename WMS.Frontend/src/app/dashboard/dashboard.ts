@@ -7,7 +7,7 @@ import { Departments } from '../departments/departments';
 import { EmployeeManagement } from '../employees/employee-management';
 import { Leave } from '../leaves/leave';
 import { DashboardResponse, DashboardService } from './dashboard.service';
-import { filter, finalize, timeout } from 'rxjs';
+import { filter } from 'rxjs';
 
 interface SummaryCard {
   label: string;
@@ -61,6 +61,7 @@ export class Dashboard implements OnInit {
   protected isDashboardLoading = false;
   protected dashboardError = '';
   protected lastUpdatedAt = '';
+  private dashboardRequestId = 0;
   protected get navItems(): { id: DashboardSection; label: string }[] {
     const items: { id: DashboardSection; label: string }[] = [
       { id: 'dashboard', label: 'Dashboard' },
@@ -237,17 +238,16 @@ export class Dashboard implements OnInit {
   }
 
   private loadDashboard(): void {
+    const requestId = ++this.dashboardRequestId;
     this.isDashboardLoading = true;
     this.dashboardError = '';
-    this.dashboardService.getDashboard(this.role as 'Admin' | 'Manager' | 'Employee')
-      .pipe(
-        timeout(10000),
-        finalize(() => {
-          this.isDashboardLoading = false;
-        })
-      )
-      .subscribe({
-      next: (response) => {
+
+    void this.dashboardService.getDashboard(this.role as 'Admin' | 'Manager' | 'Employee')
+      .then((response) => {
+        if (requestId !== this.dashboardRequestId) {
+          return;
+        }
+
         const dashboard = this.normalizeDashboardResponse(response);
         this.dashboardData = dashboard;
         this.visibleAnnouncements = [];
@@ -257,13 +257,21 @@ export class Dashboard implements OnInit {
         if (dashboard) {
           this.loadAnnouncements();
         }
-      },
-      error: (error) => {
-        this.redirectIfUnauthorized(error);
+      })
+      .catch((error) => {
+        if (requestId !== this.dashboardRequestId) {
+          return;
+        }
+
+        this.redirectIfUnauthenticated(error);
         this.dashboardData = null;
         this.dashboardError = this.getDashboardError(error);
-      }
-    });
+      })
+      .finally(() => {
+        if (requestId === this.dashboardRequestId) {
+          this.isDashboardLoading = false;
+        }
+      });
   }
 
   protected refreshDashboard(): void {
@@ -557,9 +565,9 @@ export class Dashboard implements OnInit {
     return 'Unable to refresh announcements.';
   }
 
-  private redirectIfUnauthorized(error: unknown): void {
+  private redirectIfUnauthenticated(error: unknown): void {
     const response = error as { status?: number };
-    if (response.status === 401 || response.status === 403) {
+    if (response.status === 401) {
       this.authService.logout();
       void this.router.navigateByUrl('/login');
     }

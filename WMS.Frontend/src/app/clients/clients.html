@@ -59,9 +59,9 @@
     </div>
 
     <div class="pagination">
-      <button type="button" (click)="changePage(-1)" [disabled]="pageNumber <= 1">Previous</button>
+      <button type="button" (click)="changePage(-1)" [disabled]="!hasPreviousPage">Previous</button>
       <span>Page {{ pageNumber }} of {{ totalPages || 1 }} | {{ totalCount }} records</span>
-      <button type="button" (click)="changePage(1)" [disabled]="totalPages > 0 && pageNumber >= totalPages">Next</button>
+      <button type="button" (click)="changePage(1)" [disabled]="!hasNextPage">Next</button>
     </div>
   } @else if (mode === 'detail') {
     @if (currentClient) {
@@ -106,6 +106,11 @@
           <option [ngValue]="true">Active</option>
           <option [ngValue]="false">Inactive</option>
         </select>
+      </label>
+      <label>
+        <span>Project Count</span>
+        <input type="number" [value]="currentClient?.projectCount ?? 0" disabled />
+        <small>Calculated from projects linked to this client.</small>
       </label>
       <div class="form-actions">
         <a routerLink="/clients" class="link-button">Back to Clients</a>

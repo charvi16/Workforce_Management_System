@@ -10,6 +10,7 @@ import {
   Role
 } from './employee-management.service';
 import { AuthService } from '../auth/auth.service';
+import { normalizePagedResponse } from '../shared/pagination';
 
 @Component({
   selector: 'app-employee-management',
@@ -27,7 +28,7 @@ export class EmployeeManagement implements OnInit {
   protected employees: Employee[] = [];
   protected totalEmployees = 0;
   protected employeePageNumber = 1;
-  protected employeePageSize = 100;
+  protected employeePageSize = 10;
   protected employeeTotalPages = 0;
   protected departments: Department[] = [];
   protected roles: Role[] = [];
@@ -40,6 +41,14 @@ export class EmployeeManagement implements OnInit {
   protected errorMessage = '';
   protected readonly currentUser = this.authService.getCurrentUser();
   protected readonly canManageOrganization = this.currentUser?.role?.trim().toLowerCase() === 'admin';
+
+  protected get hasPreviousEmployeePage(): boolean {
+    return this.employeePageNumber > 1;
+  }
+
+  protected get hasNextEmployeePage(): boolean {
+    return this.employeeTotalPages > 1 && this.employeePageNumber < this.employeeTotalPages;
+  }
 
   protected readonly genders = [
     { id: 1, name: 'Male' },
@@ -102,7 +111,7 @@ export class EmployeeManagement implements OnInit {
     this.isLoading = true;
     this.employeeService.getEmployees(search ?? '', departmentId ?? '', roleId ?? '', status ?? '', this.employeePageNumber, this.employeePageSize).subscribe({
       next: (response) => {
-        const page = response.data;
+        const page = this.normalizePage<Employee>(response, this.employeePageNumber, this.employeePageSize);
         this.employees = page?.items ?? [];
         this.totalEmployees = page?.totalCount ?? 0;
         this.employeePageNumber = page?.pageNumber ?? this.employeePageNumber;
@@ -124,7 +133,7 @@ export class EmployeeManagement implements OnInit {
 
   changeEmployeePage(delta: number): void {
     const nextPage = this.employeePageNumber + delta;
-    if (nextPage < 1 || (this.employeeTotalPages > 0 && nextPage > this.employeeTotalPages)) {
+    if ((delta < 0 && !this.hasPreviousEmployeePage) || (delta > 0 && !this.hasNextEmployeePage) || nextPage < 1) {
       return;
     }
 
@@ -490,5 +499,9 @@ export class EmployeeManagement implements OnInit {
       roleId: Number(value.roleId),
       status: Number(value.status)
     };
+  }
+
+  private normalizePage<T>(response: unknown, fallbackPageNumber: number, fallbackPageSize: number): { items: T[]; totalCount: number; pageNumber: number; pageSize: number; totalPages: number } | null {
+    return normalizePagedResponse<T>(response, fallbackPageNumber, fallbackPageSize);
   }
 }

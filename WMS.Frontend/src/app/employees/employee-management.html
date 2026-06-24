@@ -129,9 +129,9 @@
       </div>
 
       <div class="pagination-row">
-        <button type="button" class="secondary" (click)="changeEmployeePage(-1)" [disabled]="employeePageNumber <= 1">Previous</button>
+        <button type="button" class="secondary" (click)="changeEmployeePage(-1)" [disabled]="!hasPreviousEmployeePage">Previous</button>
         <span>Page {{ employeePageNumber }} of {{ employeeTotalPages || 1 }}</span>
-        <button type="button" class="secondary" (click)="changeEmployeePage(1)" [disabled]="employeeTotalPages > 0 && employeePageNumber >= employeeTotalPages">Next</button>
+        <button type="button" class="secondary" (click)="changeEmployeePage(1)" [disabled]="!hasNextEmployeePage">Next</button>
       </div>
     </article>
   } @else {

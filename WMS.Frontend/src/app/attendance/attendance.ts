@@ -1,7 +1,8 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AuthService } from '../auth/auth.service';
-import { AttendanceEmployee, AttendanceRecord, AttendanceService } from './attendance.service';
+import { normalizePagedResponse } from '../shared/pagination';
+import { AttendanceEmployee, AttendanceRecord, AttendanceService, PagedResult } from './attendance.service';
 
 @Component({
   selector: 'app-attendance',
@@ -62,6 +63,14 @@ export class Attendance implements OnInit {
     }
 
     return 'View your attendance.';
+  }
+
+  protected get hasPreviousAttendancePage(): boolean {
+    return this.attendancePageNumber > 1;
+  }
+
+  protected get hasNextAttendancePage(): boolean {
+    return this.attendanceTotalPages > 1 && this.attendancePageNumber < this.attendanceTotalPages;
   }
 
   ngOnInit(): void {
@@ -130,7 +139,7 @@ export class Attendance implements OnInit {
       .getMonthlyAttendance(Number(value.employeeId), Number(value.month), Number(value.year), this.attendancePageNumber, this.attendancePageSize)
       .subscribe({
         next: (response) => {
-          const page = response.data;
+          const page = this.normalizePage<AttendanceRecord>(response, this.attendancePageNumber, this.attendancePageSize);
           this.records = page?.items ?? [];
           this.attendancePageNumber = page?.pageNumber ?? this.attendancePageNumber;
           this.attendancePageSize = page?.pageSize ?? this.attendancePageSize;
@@ -154,7 +163,7 @@ export class Attendance implements OnInit {
 
   changeAttendancePage(delta: number): void {
     const nextPage = this.attendancePageNumber + delta;
-    if (nextPage < 1 || (this.attendanceTotalPages > 0 && nextPage > this.attendanceTotalPages)) {
+    if ((delta < 0 && !this.hasPreviousAttendancePage) || (delta > 0 && !this.hasNextAttendancePage) || nextPage < 1) {
       return;
     }
 
@@ -246,6 +255,10 @@ export class Attendance implements OnInit {
     this.attendancePageNumber = 1;
     this.upsertAttendanceRecord(record);
     this.loadMonthlyAttendance();
+  }
+
+  private normalizePage<T>(response: unknown, fallbackPageNumber: number, fallbackPageSize: number): PagedResult<T> | null {
+    return normalizePagedResponse<T>(response, fallbackPageNumber, fallbackPageSize);
   }
 
   private getApiError(error: unknown, fallback: string): string {

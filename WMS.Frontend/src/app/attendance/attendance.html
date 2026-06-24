@@ -115,9 +115,9 @@
     </div>
 
     <div class="pagination-row">
-      <button type="button" class="secondary" (click)="changeAttendancePage(-1)" [disabled]="attendancePageNumber <= 1">Previous</button>
+      <button type="button" class="secondary" (click)="changeAttendancePage(-1)" [disabled]="!hasPreviousAttendancePage">Previous</button>
       <span>Page {{ attendancePageNumber }} of {{ attendanceTotalPages || 1 }} · {{ attendanceTotalCount }} records</span>
-      <button type="button" class="secondary" (click)="changeAttendancePage(1)" [disabled]="attendanceTotalPages > 0 && attendancePageNumber >= attendanceTotalPages">Next</button>
+      <button type="button" class="secondary" (click)="changeAttendancePage(1)" [disabled]="!hasNextAttendancePage">Next</button>
     </div>
   </article>
 </section>

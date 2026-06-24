@@ -4,6 +4,7 @@ import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angu
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
 import { Department, EmployeeManagementService } from '../employees/employee-management.service';
+import { normalizePagedResponse } from '../shared/pagination';
 
 type DepartmentMode = 'list' | 'add' | 'edit' | 'detail';
 
@@ -25,7 +26,7 @@ export class Departments implements OnInit {
   protected currentDepartment: Department | null = null;
   protected search = '';
   protected pageNumber = 1;
-  protected pageSize = 100;
+  protected pageSize = 10;
   protected totalCount = 0;
   protected totalPages = 0;
   protected isLoading = false;
@@ -33,6 +34,14 @@ export class Departments implements OnInit {
   protected message = '';
   protected errorMessage = '';
   protected readonly canManage = this.authService.getCurrentUser()?.role?.trim().toLowerCase() === 'admin';
+
+  protected get hasPreviousPage(): boolean {
+    return this.pageNumber > 1;
+  }
+
+  protected get hasNextPage(): boolean {
+    return this.totalPages > 1 && this.pageNumber < this.totalPages;
+  }
 
   protected readonly departmentForm = this.formBuilder.group({
     departmentName: ['', [Validators.required, Validators.maxLength(100)]],
@@ -53,7 +62,7 @@ export class Departments implements OnInit {
     this.isLoading = true;
     this.employeeService.getDepartmentPage(this.search, this.pageNumber, this.pageSize).subscribe({
       next: (response) => {
-        const page = response.data;
+        const page = this.normalizePage<Department>(response, this.pageNumber, this.pageSize);
         this.departments = page?.items ?? [];
         this.totalCount = page?.totalCount ?? 0;
         this.pageNumber = page?.pageNumber ?? this.pageNumber;
@@ -83,7 +92,7 @@ export class Departments implements OnInit {
 
   changePage(delta: number): void {
     const nextPage = this.pageNumber + delta;
-    if (nextPage < 1 || (this.totalPages > 0 && nextPage > this.totalPages)) {
+    if ((delta < 0 && !this.hasPreviousPage) || (delta > 0 && !this.hasNextPage) || nextPage < 1) {
       return;
     }
 
@@ -226,5 +235,9 @@ export class Departments implements OnInit {
       return 'detail';
     }
     return 'list';
+  }
+
+  private normalizePage<T>(response: unknown, fallbackPageNumber: number, fallbackPageSize: number): { items: T[]; totalCount: number; pageNumber: number; pageSize: number; totalPages: number } | null {
+    return normalizePagedResponse<T>(response, fallbackPageNumber, fallbackPageSize);
   }
 }

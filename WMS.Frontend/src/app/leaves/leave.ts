@@ -1,7 +1,8 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AuthService } from '../auth/auth.service';
-import { LeaveEmployee, LeaveRecord, LeaveService, LeaveStatistics } from './leave.service';
+import { normalizePagedResponse } from '../shared/pagination';
+import { LeaveEmployee, LeaveRecord, LeaveService, LeaveStatistics, PagedResult } from './leave.service';
 
 @Component({
   selector: 'app-leave',
@@ -50,6 +51,14 @@ export class Leave implements OnInit {
     }
 
     return 'Track your leave requests.';
+  }
+
+  protected get hasPreviousLeavePage(): boolean {
+    return this.leavePageNumber > 1;
+  }
+
+  protected get hasNextLeavePage(): boolean {
+    return this.leaveTotalPages > 1 && this.leavePageNumber < this.leaveTotalPages;
   }
 
   protected readonly leaveTypes = [
@@ -133,7 +142,7 @@ export class Leave implements OnInit {
           return;
         }
 
-        const page = response.data;
+        const page = this.normalizePage<LeaveRecord>(response, this.leavePageNumber, this.leavePageSize);
         this.leaves = page?.items ?? [];
         this.leavePageNumber = page?.pageNumber ?? this.leavePageNumber;
         this.leavePageSize = page?.pageSize ?? this.leavePageSize;
@@ -188,7 +197,7 @@ export class Leave implements OnInit {
 
   changeLeavePage(delta: number): void {
     const nextPage = this.leavePageNumber + delta;
-    if (nextPage < 1 || (this.leaveTotalPages > 0 && nextPage > this.leaveTotalPages)) {
+    if ((delta < 0 && !this.hasPreviousLeavePage) || (delta > 0 && !this.hasNextLeavePage) || nextPage < 1) {
       return;
     }
 
@@ -277,5 +286,9 @@ export class Leave implements OnInit {
 
   private getEmployeeRoleName(employeeId: number): string {
     return this.employees.find((employee) => employee.employeeId === employeeId)?.roleName ?? '';
+  }
+
+  private normalizePage<T>(response: unknown, fallbackPageNumber: number, fallbackPageSize: number): PagedResult<T> | null {
+    return normalizePagedResponse<T>(response, fallbackPageNumber, fallbackPageSize);
   }
 }

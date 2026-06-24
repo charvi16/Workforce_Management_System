@@ -175,9 +175,9 @@
     </div>
 
     <div class="pagination-row">
-      <button type="button" class="secondary" (click)="changeLeavePage(-1)" [disabled]="leavePageNumber <= 1">Previous</button>
+      <button type="button" class="secondary" (click)="changeLeavePage(-1)" [disabled]="!hasPreviousLeavePage">Previous</button>
       <span>Page {{ leavePageNumber }} of {{ leaveTotalPages || 1 }} · {{ leaveTotalCount }} records</span>
-      <button type="button" class="secondary" (click)="changeLeavePage(1)" [disabled]="leaveTotalPages > 0 && leavePageNumber >= leaveTotalPages">Next</button>
+      <button type="button" class="secondary" (click)="changeLeavePage(1)" [disabled]="!hasNextLeavePage">Next</button>
     </div>
   </article>
 </section>

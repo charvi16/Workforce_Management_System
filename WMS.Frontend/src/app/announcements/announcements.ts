@@ -4,6 +4,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, NavigationEnd, Router, RouterLink } from '@angular/router';
 import { filter } from 'rxjs';
 import { AuthService } from '../auth/auth.service';
+import { normalizePagedResponse } from '../shared/pagination';
 import { Announcement, AnnouncementRequest, AnnouncementsService, PagedResult } from './announcements.service';
 
 type AnnouncementMode = 'list' | 'add' | 'edit' | 'detail';
@@ -25,7 +26,7 @@ export class Announcements implements OnInit {
   protected announcements: Announcement[] = [];
   protected currentAnnouncement: Announcement | null = null;
   protected pageNumber = 1;
-  protected pageSize = 100;
+  protected pageSize = 10;
   protected totalPages = 0;
   protected totalCount = 0;
   protected isLoading = false;
@@ -35,6 +36,14 @@ export class Announcements implements OnInit {
   protected readonly currentUser = this.authService.getCurrentUser();
   protected readonly canManage = this.currentUser?.role?.trim().toLowerCase() === 'admin';
   protected readonly targetRoles = ['', 'Admin', 'Manager', 'Employee'];
+
+  protected get hasPreviousPage(): boolean {
+    return this.pageNumber > 1;
+  }
+
+  protected get hasNextPage(): boolean {
+    return this.totalPages > 1 && this.pageNumber < this.totalPages;
+  }
 
   protected readonly form = this.formBuilder.group({
     title: ['', [Validators.required, Validators.maxLength(150)]],
@@ -160,7 +169,7 @@ export class Announcements implements OnInit {
 
   changePage(delta: number): void {
     const nextPage = this.pageNumber + delta;
-    if (nextPage < 1 || (this.totalPages > 0 && nextPage > this.totalPages)) {
+    if ((delta < 0 && !this.hasPreviousPage) || (delta > 0 && !this.hasNextPage) || nextPage < 1) {
       return;
     }
 
@@ -194,36 +203,7 @@ export class Announcements implements OnInit {
   }
 
   private normalizePage(response: unknown): PagedResult<Announcement> | null {
-    const source = response as { data?: unknown; Data?: unknown };
-    const rawPage = this.toCamelCaseObject(source.data ?? source.Data) as Partial<PagedResult<Announcement>> | null;
-
-    if (!rawPage) {
-      return null;
-    }
-
-    return {
-      items: rawPage.items ?? [],
-      totalCount: Number(rawPage.totalCount ?? 0),
-      pageNumber: Number(rawPage.pageNumber ?? this.pageNumber),
-      pageSize: Number(rawPage.pageSize ?? this.pageSize),
-      totalPages: Number(rawPage.totalPages ?? 0)
-    };
-  }
-
-  private toCamelCaseObject(value: unknown): unknown {
-    if (Array.isArray(value)) {
-      return value.map((item) => this.toCamelCaseObject(item));
-    }
-
-    if (!value || typeof value !== 'object') {
-      return value;
-    }
-
-    return Object.entries(value as Record<string, unknown>).reduce<Record<string, unknown>>((result, [key, item]) => {
-      const normalizedKey = key.length ? `${key[0].toLowerCase()}${key.slice(1)}` : key;
-      result[normalizedKey] = this.toCamelCaseObject(item);
-      return result;
-    }, {});
+    return normalizePagedResponse<Announcement>(response, this.pageNumber, this.pageSize);
   }
 
   private resolveMode(): AnnouncementMode {

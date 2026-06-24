@@ -207,7 +207,6 @@ SQL Server Database
 ### 7.6 Project and Client Management
 - Admin/Manager can create and manage clients.
 - Admin/Manager can create and manage projects.
-- Employees can be allocated to projects.
 - Track allocation status and audit metadata.
 
 ### 7.7 Announcement / Notice Board

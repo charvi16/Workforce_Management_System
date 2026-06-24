@@ -62,9 +62,9 @@
     </div>
 
     <div class="pagination">
-      <button type="button" (click)="changeProjectPage(-1)" [disabled]="projectPageNumber <= 1">Previous</button>
+      <button type="button" (click)="changeProjectPage(-1)" [disabled]="!hasPreviousProjectPage">Previous</button>
       <span>Page {{ projectPageNumber }} of {{ projectTotalPages || 1 }} | {{ projectTotalCount }} records</span>
-      <button type="button" (click)="changeProjectPage(1)" [disabled]="projectTotalPages > 0 && projectPageNumber >= projectTotalPages">Next</button>
+      <button type="button" (click)="changeProjectPage(1)" [disabled]="!hasNextProjectPage">Next</button>
     </div>
   } @else if (mode === 'detail') {
     @if (currentProject) {
@@ -121,9 +121,9 @@
           </div>
 
           <div class="pagination">
-            <button type="button" (click)="changeAllocationPage(-1)" [disabled]="allocationPageNumber <= 1">Previous</button>
+            <button type="button" (click)="changeAllocationPage(-1)" [disabled]="!hasPreviousAllocationPage">Previous</button>
             <span>Page {{ allocationPageNumber }} of {{ allocationTotalPages || 1 }}</span>
-            <button type="button" (click)="changeAllocationPage(1)" [disabled]="allocationTotalPages > 0 && allocationPageNumber >= allocationTotalPages">Next</button>
+            <button type="button" (click)="changeAllocationPage(1)" [disabled]="!hasNextAllocationPage">Next</button>
           </div>
         </section>
 
@@ -140,13 +140,13 @@
                 <select formControlName="empId">
                   <option [ngValue]="0">Select Employee</option>
                   @for (employee of employees; track employee.employeeId) {
-                    <option [ngValue]="employee.employeeId">{{ employee.fullName }}</option>
+                    <option [ngValue]="employee.employeeId">{{ employeeDisplayName(employee) }}</option>
                   }
                 </select>
               </label>
               <label>
                 <span>Assigned On</span>
-                <input type="date" formControlName="assignedOn" />
+                <input type="date" formControlName="assignedOn" [attr.min]="projectStartDate()" [attr.max]="projectEndDate()" />
               </label>
               <label>
                 <span>Role In Project</span>
@@ -164,7 +164,7 @@
                 </select>
               </label>
               <div class="form-actions">
-                <button type="submit">Assign Employee</button>
+                <button type="submit" [disabled]="isAssigning">{{ isAssigning ? 'Assigning...' : 'Assign Employee' }}</button>
               </div>
             </form>
           </section>
@@ -202,8 +202,32 @@
           }
         </select>
       </label>
+      <section class="member-picker">
+        <div class="section-heading">
+          <h3>Project Members</h3>
+          <span>{{ selectedProjectMemberCount }} selected</span>
+        </div>
+
+        <div class="member-grid">
+          @for (employee of employees; track employee.employeeId) {
+            <label class="member-option">
+              <input
+                type="checkbox"
+                [checked]="isProjectMemberSelected(employee.employeeId)"
+                (change)="toggleProjectMember(employee.employeeId, $any($event.target).checked)"
+              />
+              <span>{{ employeeDisplayName(employee) }}</span>
+              <small>{{ employee.departmentName }} · {{ employee.roleName }}</small>
+            </label>
+          } @empty {
+            <p class="empty">No employees available to assign.</p>
+          }
+        </div>
+      </section>
       <div class="form-actions">
-        <button type="submit" [disabled]="!canManage">{{ mode === 'edit' ? 'Update' : 'Create' }}</button>
+        <button type="submit" [disabled]="!canManage || isSaving">
+          {{ isSaving ? 'Saving...' : mode === 'edit' ? 'Update Project' : 'Create Project' }}
+        </button>
       </div>
     </form>
   }

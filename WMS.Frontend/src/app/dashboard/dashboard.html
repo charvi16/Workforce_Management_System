@@ -8,8 +8,8 @@
         @if (lastUpdatedAt) {
           <span>Updated {{ lastUpdatedAt }}</span>
         }
-        <button type="button" (click)="refreshDashboard()" [disabled]="isDashboardLoading">
-          {{ isDashboardLoading ? 'Refreshing...' : 'Refresh' }}
+        <button type="button" (click)="refreshDashboard()">
+          Refresh
         </button>
       </div>
     </header>
@@ -80,7 +80,7 @@
               </tr>
             </thead>
             <tbody>
-              @for (row of attendanceRows; track row.name) {
+              @for (row of attendanceRows; track $index) {
                 <tr>
                   <td>{{ row.name }}</td>
                   <td>{{ row.detail }}</td>
@@ -102,7 +102,7 @@
           </div>
           <table>
             <tbody>
-              @for (row of approvalRows; track row.person + row.type) {
+              @for (row of approvalRows; track $index) {
                 <tr>
                   <td>{{ row.person }}</td>
                   <td>{{ row.type }}</td>
@@ -124,7 +124,7 @@
           </div>
           <table>
             <tbody>
-              @for (project of projectRows; track project.name) {
+              @for (project of projectRows; track $index) {
                 <tr>
                   <td>{{ project.name }}</td>
                   <td>{{ project.detail }}</td>
@@ -145,7 +145,7 @@
             <span>Live signals</span>
           </div>
           <ul class="text-list">
-            @for (alert of alerts; track alert.message) {
+            @for (alert of alerts; track $index) {
               <li><strong>{{ alert.type }}:</strong> {{ alert.message }}</li>
             }
           </ul>
@@ -171,7 +171,7 @@
             <span>Notice board</span>
           </div>
           <ol class="text-list">
-            @for (announcement of announcements; track announcement) {
+            @for (announcement of announcements; track $index) {
               <li>{{ announcement }}</li>
             } @empty {
               <li>{{ announcementError || 'No announcements available.' }}</li>
@@ -185,7 +185,7 @@
             <span>Latest updates</span>
           </div>
           <ul class="text-list">
-            @for (activity of recentActivity; track activity) {
+            @for (activity of recentActivity; track $index) {
               <li>{{ activity }}</li>
             }
           </ul>

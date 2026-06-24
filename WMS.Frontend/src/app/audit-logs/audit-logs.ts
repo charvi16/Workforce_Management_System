@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { normalizePagedResponse } from '../shared/pagination';
 import { AuditLog, AuditLogsService } from './audit-logs.service';
 
 @Component({
@@ -20,6 +21,14 @@ export class AuditLogs implements OnInit {
   protected isLoading = false;
   protected errorMessage = '';
 
+  protected get hasPreviousPage(): boolean {
+    return this.pageNumber > 1;
+  }
+
+  protected get hasNextPage(): boolean {
+    return this.totalPages > 1 && this.pageNumber < this.totalPages;
+  }
+
   ngOnInit(): void {
     this.loadLogs();
   }
@@ -28,7 +37,7 @@ export class AuditLogs implements OnInit {
     this.isLoading = true;
     this.auditLogsService.getAuditLogs(this.pageNumber, this.pageSize).subscribe({
       next: (response) => {
-        const page = response.data;
+        const page = this.normalizePage(response);
         this.logs = page?.items ?? [];
         this.pageNumber = page?.pageNumber ?? this.pageNumber;
         this.pageSize = page?.pageSize ?? this.pageSize;
@@ -47,7 +56,7 @@ export class AuditLogs implements OnInit {
 
   changePage(delta: number): void {
     const nextPage = this.pageNumber + delta;
-    if (nextPage < 1 || (this.totalPages > 0 && nextPage > this.totalPages)) {
+    if ((delta < 0 && !this.hasPreviousPage) || (delta > 0 && !this.hasNextPage) || nextPage < 1) {
       return;
     }
 
@@ -57,5 +66,9 @@ export class AuditLogs implements OnInit {
 
   protected formatDate(value: string): string {
     return new Date(value).toLocaleString();
+  }
+
+  private normalizePage(response: unknown): { items: AuditLog[]; totalCount: number; pageNumber: number; pageSize: number; totalPages: number } | null {
+    return normalizePagedResponse<AuditLog>(response, this.pageNumber, this.pageSize);
   }
 }

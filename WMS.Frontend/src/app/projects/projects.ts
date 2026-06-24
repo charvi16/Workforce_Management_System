@@ -3,10 +3,11 @@ import { Component, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, NavigationEnd, Router, RouterLink } from '@angular/router';
-import { filter } from 'rxjs';
+import { filter, firstValueFrom } from 'rxjs';
 import { ClientsService, Client } from '../clients/clients.service';
 import { EmployeeManagementService, Employee } from '../employees/employee-management.service';
 import { AuthService } from '../auth/auth.service';
+import { normalizePagedResponse } from '../shared/pagination';
 import {
   Project,
   ProjectAllocation,
@@ -48,16 +49,35 @@ export class Projects implements OnInit {
   protected clients: Client[] = [];
   protected employees: Employee[] = [];
   protected isLoading = false;
+  protected isSaving = false;
+  protected isAssigning = false;
   protected message = '';
   protected errorMessage = '';
   protected search = '';
   protected statusFilter = '';
   protected clientFilter = 0;
+  protected selectedProjectMemberIds = new Set<number>();
   protected readonly currentUser = this.authService.getCurrentUser();
   protected readonly canManage = this.isRole('Admin');
   protected readonly canAssign = this.isRole('Admin') || this.isRole('Manager');
 
   protected readonly statuses = ['Planned', 'Active', 'OnHold', 'Completed', 'Cancelled', 'Delayed'];
+
+  protected get hasPreviousProjectPage(): boolean {
+    return this.projectPageNumber > 1;
+  }
+
+  protected get hasNextProjectPage(): boolean {
+    return this.projectTotalPages > 1 && this.projectPageNumber < this.projectTotalPages;
+  }
+
+  protected get hasPreviousAllocationPage(): boolean {
+    return this.allocationPageNumber > 1;
+  }
+
+  protected get hasNextAllocationPage(): boolean {
+    return this.allocationTotalPages > 1 && this.allocationPageNumber < this.allocationTotalPages;
+  }
 
   protected readonly projectForm = this.formBuilder.group({
     projectName: ['', [Validators.required, Validators.maxLength(100)]],
@@ -75,6 +95,10 @@ export class Projects implements OnInit {
     status: [true, [Validators.required]]
   });
 
+  protected get selectedProjectMemberCount(): number {
+    return this.selectedProjectMemberIds.size;
+  }
+
   ngOnInit(): void {
     this.syncModeFromRoute();
     this.router.events
@@ -88,6 +112,7 @@ export class Projects implements OnInit {
     this.errorMessage = '';
     this.currentProject = null;
     this.allocations = [];
+    this.selectedProjectMemberIds.clear();
     this.loadLookups();
 
     if (this.mode === 'list') {
@@ -123,9 +148,13 @@ export class Projects implements OnInit {
     });
   }
 
-  saveProject(): void {
+  async saveProject(): Promise<void> {
     if (!this.canManage || this.projectForm.invalid) {
       this.projectForm.markAllAsTouched();
+      return;
+    }
+
+    if (this.isSaving) {
       return;
     }
 
@@ -135,16 +164,32 @@ export class Projects implements OnInit {
       ? this.projectsService.updateProject(id, payload)
       : this.projectsService.createProject(payload);
 
-    request$.subscribe({
-      next: (response) => {
-        this.message = response.message;
-        this.errorMessage = '';
-        this.resetForms();
-      },
-      error: (error) => {
-        this.errorMessage = error.error?.errors?.[0] ?? 'Unable to save project.';
+    this.isSaving = true;
+    this.message = '';
+    this.errorMessage = '';
+
+    try {
+      const response = await firstValueFrom(request$);
+      const project = response.data;
+      await this.createSelectedMemberAllocations(project.projectId);
+      this.message = this.selectedProjectMemberCount > 0
+        ? `${response.message} ${this.selectedProjectMemberCount} member(s) assigned.`
+        : response.message;
+      this.errorMessage = '';
+      this.selectedProjectMemberIds.clear();
+
+      if (this.mode === 'add') {
+        void this.router.navigateByUrl(`/projects/${project.projectId}`);
+      } else {
+        this.currentProject = project;
+        this.loadProject(project.projectId);
+        this.loadAllocations(project.projectId);
       }
-    });
+    } catch (error) {
+      this.errorMessage = this.getApiError(error, 'Unable to save project.');
+    } finally {
+      this.isSaving = false;
+    }
   }
 
   cancelProject(projectId: number): void {
@@ -179,9 +224,13 @@ export class Projects implements OnInit {
   assignEmployee(): void {
     if (!this.canAssign || this.allocationForm.invalid || !this.currentProject) {
       this.allocationForm.markAllAsTouched();
+      this.errorMessage = !this.currentProject ? 'Open a project before assigning employees.' : 'Select an employee and assigned date.';
       return;
     }
 
+    this.isAssigning = true;
+    this.message = '';
+    this.errorMessage = '';
     const value = this.allocationForm.getRawValue();
     const payload: ProjectAllocationRequest = {
       empId: Number(value.empId),
@@ -196,11 +245,19 @@ export class Projects implements OnInit {
       next: (response) => {
         this.message = response.message;
         this.errorMessage = '';
-        this.allocationForm.patchValue({ roleInProject: '', allocationPercentage: null, status: true });
+        this.allocationForm.patchValue({
+          empId: 0,
+          assignedOn: this.defaultAssignedOnDate(this.currentProject),
+          roleInProject: '',
+          allocationPercentage: null,
+          status: true
+        });
         this.loadAllocations(this.currentProject!.projectId);
+        this.isAssigning = false;
       },
       error: (error) => {
         this.errorMessage = error.error?.errors?.[0] ?? 'Unable to assign employee.';
+        this.isAssigning = false;
       }
     });
   }
@@ -221,7 +278,7 @@ export class Projects implements OnInit {
 
   changeProjectPage(delta: number): void {
     const nextPage = this.projectPageNumber + delta;
-    if (nextPage < 1 || (this.projectTotalPages > 0 && nextPage > this.projectTotalPages)) {
+    if ((delta < 0 && !this.hasPreviousProjectPage) || (delta > 0 && !this.hasNextProjectPage) || nextPage < 1) {
       return;
     }
 
@@ -231,7 +288,7 @@ export class Projects implements OnInit {
 
   changeAllocationPage(delta: number): void {
     const nextPage = this.allocationPageNumber + delta;
-    if (nextPage < 1 || (this.allocationTotalPages > 0 && nextPage > this.allocationTotalPages)) {
+    if ((delta < 0 && !this.hasPreviousAllocationPage) || (delta > 0 && !this.hasNextAllocationPage) || nextPage < 1) {
       return;
     }
 
@@ -246,10 +303,24 @@ export class Projects implements OnInit {
     this.loadProjects();
   }
 
+  protected isProjectMemberSelected(employeeId: number): boolean {
+    return this.selectedProjectMemberIds.has(employeeId);
+  }
+
+  protected toggleProjectMember(employeeId: number, isSelected: boolean): void {
+    if (isSelected) {
+      this.selectedProjectMemberIds.add(employeeId);
+      return;
+    }
+
+    this.selectedProjectMemberIds.delete(employeeId);
+  }
+
   private loadProject(projectId: number): void {
     this.projectsService.getProject(projectId).subscribe({
       next: (response) => {
         this.currentProject = response.data;
+        this.resetAllocationFormForProject(this.currentProject);
         if (this.mode === 'edit' && this.currentProject) {
           this.projectForm.patchValue({
             projectName: this.currentProject.projectName,
@@ -271,6 +342,9 @@ export class Projects implements OnInit {
       next: (response) => {
         const page = this.normalizeAllocationPage(response);
         this.allocations = page?.items ?? [];
+        if (this.mode === 'edit') {
+          this.selectedProjectMemberIds = new Set(this.allocations.filter((allocation) => allocation.status).map((allocation) => allocation.empId));
+        }
         this.allocationTotalCount = page?.totalCount ?? 0;
         this.allocationTotalPages = page?.totalPages ?? 0;
         this.allocationPageNumber = page?.pageNumber ?? this.allocationPageNumber;
@@ -284,14 +358,32 @@ export class Projects implements OnInit {
 
   private loadLookups(): void {
     this.clientsService.getClients('', true, 1, 100).subscribe({
-      next: (response) => this.clients = response.data?.items ?? [],
+      next: (response) => this.clients = this.normalizePage<Client>(response, 1, 100)?.items ?? [],
       error: () => this.clients = []
     });
 
     this.employeeService.getEmployees('', '', '', '', 1, 100).subscribe({
-      next: (response) => this.employees = response.data?.items ?? [],
+      next: (response) => this.employees = this.normalizePage<Employee>(response, 1, 100)?.items ?? [],
       error: () => this.employees = []
     });
+  }
+
+  protected employeeDisplayName(employee: Employee): string {
+    const fullName = employee.fullName?.trim();
+    if (fullName) {
+      return fullName;
+    }
+
+    const firstLast = `${employee.firstName ?? ''} ${employee.lastName ?? ''}`.trim();
+    return firstLast || employee.username || `Employee ${employee.employeeId}`;
+  }
+
+  protected projectStartDate(): string | null {
+    return this.currentProject?.startDate?.slice(0, 10) ?? null;
+  }
+
+  protected projectEndDate(): string | null {
+    return this.currentProject?.endDate?.slice(0, 10) ?? null;
   }
 
   private resolveMode(): ProjectViewMode {
@@ -317,40 +409,31 @@ export class Projects implements OnInit {
   }
 
   private normalizePage<T>(response: unknown, fallbackPageNumber: number, fallbackPageSize: number): PagedResult<T> | null {
-    const source = response as { data?: unknown; Data?: unknown };
-    const rawPage = this.toCamelCaseObject(source.data ?? source.Data) as Partial<PagedResult<T>> | null;
-
-    if (!rawPage) {
-      return null;
-    }
-
-    return {
-      items: rawPage.items ?? [],
-      totalCount: Number(rawPage.totalCount ?? 0),
-      pageNumber: Number(rawPage.pageNumber ?? fallbackPageNumber),
-      pageSize: Number(rawPage.pageSize ?? fallbackPageSize),
-      totalPages: Number(rawPage.totalPages ?? 0)
-    };
-  }
-
-  private toCamelCaseObject(value: unknown): unknown {
-    if (Array.isArray(value)) {
-      return value.map((item) => this.toCamelCaseObject(item));
-    }
-
-    if (!value || typeof value !== 'object') {
-      return value;
-    }
-
-    return Object.entries(value as Record<string, unknown>).reduce<Record<string, unknown>>((result, [key, item]) => {
-      const normalizedKey = key.length ? `${key[0].toLowerCase()}${key.slice(1)}` : key;
-      result[normalizedKey] = this.toCamelCaseObject(item);
-      return result;
-    }, {});
+    return normalizePagedResponse<T>(response, fallbackPageNumber, fallbackPageSize);
   }
 
   private isRole(role: string): boolean {
     return this.currentUser?.role?.trim().toLowerCase() === role.toLowerCase();
+  }
+
+  private async createSelectedMemberAllocations(projectId: number): Promise<void> {
+    if (this.selectedProjectMemberIds.size === 0) {
+      return;
+    }
+
+    const existingActiveMemberIds = new Set(this.allocations.filter((allocation) => allocation.status).map((allocation) => allocation.empId));
+    const memberIds = [...this.selectedProjectMemberIds].filter((employeeId) => !existingActiveMemberIds.has(employeeId));
+    if (memberIds.length === 0) {
+      return;
+    }
+
+    const assignedOn = this.defaultAssignedOnDateForForm();
+    await Promise.all(memberIds.map((employeeId) => firstValueFrom(this.projectsService.createAllocation({
+      empId: employeeId,
+      projectId,
+      assignedOn,
+      status: true
+    }))));
   }
 
   private resetForms(): void {
@@ -363,11 +446,76 @@ export class Projects implements OnInit {
     });
     this.allocationForm.reset({
       empId: 0,
-      assignedOn: '',
+      assignedOn: this.defaultAssignedOnDate(this.currentProject),
       roleInProject: '',
       allocationPercentage: null,
       status: true
     });
+    this.selectedProjectMemberIds.clear();
+  }
+
+  private resetAllocationFormForProject(project: Project | null): void {
+    if (!project || !this.canAssign) {
+      return;
+    }
+
+    this.allocationForm.reset({
+      empId: 0,
+      assignedOn: this.defaultAssignedOnDate(project),
+      roleInProject: '',
+      allocationPercentage: null,
+      status: true
+    });
+  }
+
+  private defaultAssignedOnDate(project: Project | null): string {
+    const today = new Date().toISOString().slice(0, 10);
+    const startDate = project?.startDate?.slice(0, 10);
+    const endDate = project?.endDate?.slice(0, 10);
+
+    if (startDate && today < startDate) {
+      return startDate;
+    }
+
+    if (endDate && today > endDate) {
+      return endDate;
+    }
+
+    return today;
+  }
+
+  private defaultAssignedOnDateForForm(): string {
+    const today = new Date().toISOString().slice(0, 10);
+    const startDate = this.projectForm.controls.startDate.value || undefined;
+    const endDate = this.projectForm.controls.endDate.value || undefined;
+
+    if (startDate && today < startDate) {
+      return startDate;
+    }
+
+    if (endDate && today > endDate) {
+      return endDate;
+    }
+
+    return today;
+  }
+
+  private getApiError(error: unknown, fallback: string): string {
+    const response = error as {
+      error?: { errors?: unknown; message?: string; Message?: string; title?: string; Title?: string };
+      message?: string;
+    };
+    const errors = response.error?.errors;
+    if (Array.isArray(errors) && errors.length > 0) {
+      return String(errors[0]);
+    }
+
+    return response.error?.message
+      ?? response.error?.Message
+      ?? response.error?.title
+      ?? response.error?.Title
+      ?? response.message
+      ?? fallback;
   }
 
   private toProjectRequest(): ProjectRequest {
