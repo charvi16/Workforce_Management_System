@@ -37,7 +37,7 @@ public class ProjectService : IProjectService
 
         var query = _dbContext.Projects
             .AsNoTracking()
-            .Where(p => IsAdminRole(currentUserRole) || accessibleProjectIds.Contains(p.ProjectId));
+            .Where(p => IsAdminRole(currentUserRole) || IsManagerRole(currentUserRole) || accessibleProjectIds.Contains(p.ProjectId));
 
         if (clientId.HasValue)
         {
@@ -94,7 +94,7 @@ public class ProjectService : IProjectService
 
         var project = await _dbContext.Projects
             .AsNoTracking()
-            .Where(p => p.ProjectId == projectId && (IsAdminRole(currentUserRole) || accessibleProjectIds.Contains(p.ProjectId)))
+            .Where(p => p.ProjectId == projectId && (IsAdminRole(currentUserRole) || IsManagerRole(currentUserRole) || accessibleProjectIds.Contains(p.ProjectId)))
             .Select(p => new ProjectRow
             {
                 ProjectId = p.ProjectId,

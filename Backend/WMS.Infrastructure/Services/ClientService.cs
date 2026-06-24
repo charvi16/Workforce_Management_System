@@ -22,12 +22,14 @@ public class ClientService : IClientService
         pageNumber = Math.Max(pageNumber, 1);
         pageSize = Math.Clamp(pageSize, 1, 100);
 
-        var currentEmployee = await GetCurrentEmployeeAsync(currentEmployeeId, cancellationToken);
-        var accessibleClientIds = GetAccessibleClientIdsQuery(currentUserRole, currentEmployee);
+        var query = _dbContext.Clients.AsNoTracking();
 
-        var query = _dbContext.Clients
-            .AsNoTracking()
-            .Where(c => IsAdminRole(currentUserRole) || accessibleClientIds.Contains(c.ClientId));
+        if (!IsAdminRole(currentUserRole) && !IsManagerRole(currentUserRole))
+        {
+            var currentEmployee = await GetCurrentEmployeeAsync(currentEmployeeId, cancellationToken);
+            var accessibleClientIds = GetAccessibleClientIdsQuery(currentUserRole, currentEmployee);
+            query = query.Where(c => accessibleClientIds.Contains(c.ClientId));
+        }
 
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -75,12 +77,16 @@ public class ClientService : IClientService
 
     public async Task<ClientDto> GetByIdAsync(int clientId, string currentUserRole, int currentEmployeeId, CancellationToken cancellationToken = default)
     {
-        var currentEmployee = await GetCurrentEmployeeAsync(currentEmployeeId, cancellationToken);
-        var accessibleClientIds = GetAccessibleClientIdsQuery(currentUserRole, currentEmployee);
-
         var query = _dbContext.Clients
             .AsNoTracking()
-            .Where(c => c.ClientId == clientId && (IsAdminRole(currentUserRole) || accessibleClientIds.Contains(c.ClientId)));
+            .Where(c => c.ClientId == clientId);
+
+        if (!IsAdminRole(currentUserRole) && !IsManagerRole(currentUserRole))
+        {
+            var currentEmployee = await GetCurrentEmployeeAsync(currentEmployeeId, cancellationToken);
+            var accessibleClientIds = GetAccessibleClientIdsQuery(currentUserRole, currentEmployee);
+            query = query.Where(c => accessibleClientIds.Contains(c.ClientId));
+        }
 
         var client = await query
             .Select(c => new ClientDto

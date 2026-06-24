@@ -30,7 +30,7 @@ public class AnnouncementService : IAnnouncementService
             query = query.Where(a =>
                 a.IsActive
                 && (!a.ExpiryDate.HasValue || a.ExpiryDate.Value.Date >= today)
-                && (a.TargetRole == null || a.TargetRole == string.Empty || a.TargetRole == currentUserRole));
+                && (a.TargetRole == null || a.TargetRole == string.Empty || a.TargetRole.ToLower() == currentUserRole.ToLower()));
         }
 
         var totalCount = await query.CountAsync(cancellationToken);
@@ -75,7 +75,7 @@ public class AnnouncementService : IAnnouncementService
             query = query.Where(a =>
                 a.IsActive
                 && (!a.ExpiryDate.HasValue || a.ExpiryDate.Value.Date >= today)
-                && (a.TargetRole == null || a.TargetRole == string.Empty || a.TargetRole == currentUserRole));
+                && (a.TargetRole == null || a.TargetRole == string.Empty || a.TargetRole.ToLower() == currentUserRole.ToLower()));
         }
 
         var announcement = await query

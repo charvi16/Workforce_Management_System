@@ -42,5 +42,31 @@ public class DashboardController : ControllerBase
         return Ok(ApiResponse<DashboardResponseDto>.Ok(dashboard, "Employee dashboard retrieved successfully."));
     }
 
+    [HttpGet("me")]
+    [Authorize(Roles = "Admin,Manager,Employee")]
+    public async Task<IActionResult> Me(CancellationToken cancellationToken)
+    {
+        DashboardResponseDto dashboard;
+        var message = "Dashboard retrieved successfully.";
+
+        if (User.IsInRole("Admin"))
+        {
+            dashboard = await _dashboardService.GetAdminDashboardAsync(CurrentEmployeeId, cancellationToken);
+            message = "Admin dashboard retrieved successfully.";
+        }
+        else if (User.IsInRole("Manager"))
+        {
+            dashboard = await _dashboardService.GetManagerDashboardAsync(CurrentEmployeeId, cancellationToken);
+            message = "Manager dashboard retrieved successfully.";
+        }
+        else
+        {
+            dashboard = await _dashboardService.GetEmployeeDashboardAsync(CurrentEmployeeId, cancellationToken);
+            message = "Employee dashboard retrieved successfully.";
+        }
+
+        return Ok(ApiResponse<DashboardResponseDto>.Ok(dashboard, message));
+    }
+
     private int CurrentEmployeeId => int.TryParse(User.FindFirstValue("employee_id"), out var employeeId) ? employeeId : 0;
 }

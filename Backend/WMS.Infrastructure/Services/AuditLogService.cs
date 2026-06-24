@@ -18,6 +18,8 @@ public class AuditLogService : IAuditLogService
 
     public async Task<PagedResult<AuditLogDto>> GetAllAsync(int pageNumber = 1, int pageSize = 10, CancellationToken cancellationToken = default)
     {
+        await EnsureAuditLogSchemaAsync(cancellationToken);
+
         pageNumber = Math.Max(pageNumber, 1);
         pageSize = Math.Clamp(pageSize, 1, 100);
 
@@ -53,6 +55,8 @@ public class AuditLogService : IAuditLogService
 
     public async Task LogAsync(int? userId, string? username, string action, string? entityName, string? entityId, string? details, string? ipAddress, CancellationToken cancellationToken = default)
     {
+        await EnsureAuditLogSchemaAsync(cancellationToken);
+
         _dbContext.AuditLogs.Add(new AuditLog
         {
             UserId = userId,
@@ -66,5 +70,73 @@ public class AuditLogService : IAuditLogService
         });
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private Task EnsureAuditLogSchemaAsync(CancellationToken cancellationToken)
+    {
+        if (!_dbContext.Database.IsSqlServer())
+        {
+            return Task.CompletedTask;
+        }
+
+        return _dbContext.Database.ExecuteSqlRawAsync("""
+IF OBJECT_ID('dbo.AuditLogs', 'U') IS NOT NULL
+BEGIN
+    IF COL_LENGTH('dbo.AuditLogs', 'UserId') IS NULL
+    BEGIN
+        ALTER TABLE dbo.AuditLogs ADD UserId int NULL;
+        IF COL_LENGTH('dbo.AuditLogs', 'CreatedBy') IS NOT NULL
+        BEGIN
+            EXEC('UPDATE dbo.AuditLogs SET UserId = CreatedBy WHERE UserId IS NULL');
+        END
+    END
+
+    IF COL_LENGTH('dbo.AuditLogs', 'Username') IS NULL
+    BEGIN
+        ALTER TABLE dbo.AuditLogs ADD Username varchar(100) NULL;
+    END
+
+    IF COL_LENGTH('dbo.AuditLogs', 'EntityId') IS NULL
+    BEGIN
+        ALTER TABLE dbo.AuditLogs ADD EntityId varchar(50) NULL;
+        IF COL_LENGTH('dbo.AuditLogs', 'RecordId') IS NOT NULL
+        BEGIN
+            EXEC('UPDATE dbo.AuditLogs SET EntityId = CONVERT(varchar(50), RecordId) WHERE EntityId IS NULL');
+        END
+    END
+
+    IF COL_LENGTH('dbo.AuditLogs', 'Details') IS NULL
+    BEGIN
+        ALTER TABLE dbo.AuditLogs ADD Details varchar(max) NULL;
+    END
+
+    IF COL_LENGTH('dbo.AuditLogs', 'IpAddress') IS NULL
+    BEGIN
+        ALTER TABLE dbo.AuditLogs ADD IpAddress varchar(50) NULL;
+    END
+
+    IF EXISTS (
+        SELECT 1
+        FROM sys.columns c
+        WHERE c.object_id = OBJECT_ID('dbo.AuditLogs')
+          AND c.name = 'Action'
+          AND c.max_length > 0
+          AND c.max_length < 100
+    )
+    BEGIN
+        ALTER TABLE dbo.AuditLogs ALTER COLUMN Action varchar(100) NOT NULL;
+    END
+
+    IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_AuditLogs_CreatedOn' AND object_id = OBJECT_ID('dbo.AuditLogs'))
+    BEGIN
+        CREATE INDEX IX_AuditLogs_CreatedOn ON dbo.AuditLogs (CreatedOn);
+    END
+
+    IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_AuditLogs_UserId' AND object_id = OBJECT_ID('dbo.AuditLogs'))
+    BEGIN
+        CREATE INDEX IX_AuditLogs_UserId ON dbo.AuditLogs (UserId);
+    END
+END
+""", cancellationToken);
     }
 }

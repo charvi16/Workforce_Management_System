@@ -168,7 +168,7 @@ public class DashboardService : IDashboardService
             .Where(a =>
                 a.IsActive
                 && (!a.ExpiryDate.HasValue || a.ExpiryDate.Value.Date >= today)
-                && (a.TargetRole == null || a.TargetRole == string.Empty || a.TargetRole == role))
+                && (a.TargetRole == null || a.TargetRole == string.Empty || a.TargetRole.ToLower() == role.ToLower()))
             .OrderByDescending(a => a.CreatedOn)
             .Take(5)
             .Select(a => $"{a.Title}: {a.Message}")
